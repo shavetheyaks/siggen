@@ -1,7 +1,9 @@
 ; ------------------------------------------------------------------------------
-; test.asm
+; siggen.asm
 ;
-; Blinks an LED on PD0 (digital out 0)
+; Outputs digital samples in parallel on port D[7:0] pins
+; Momentary-close pushbutton on pin C5 cycles through waveforms
+; Analog voltage on pin ADC0 selects frequency
 ; ------------------------------------------------------------------------------
 
 .include "./m328Pdef.inc"
