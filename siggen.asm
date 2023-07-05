@@ -331,23 +331,6 @@ _button_done:
 
 
 ; ------------------------------------------------------------------------------
-; Key press interrupt handler
-
-keypress:
-	; Wait for the switch bounce to settle
-
-	; Advance to the next waveform
-
-	; Copy the waveform to ram
-
-	; Wait for the key to be unpressed
-
-	; Wait for the switch bounce to settle
-
-	reti
-
-
-; ------------------------------------------------------------------------------
 ; Waveform data
 
 .dseg
