@@ -20,7 +20,7 @@
 	reti
 	reti              ; PCINT0
 	reti
-	rjmp	keypress  ; PCINT1
+	reti              ; PCINT1
 	reti
 	reti              ; PCINT2
 	reti
@@ -99,7 +99,7 @@
 ; r27 h/
 ; r28 l\_Y
 ; r29 h/
-; r30 l\_Z
+; r30 l\_Z  (Z) Pointer to next waveform table in rom
 ; r31 h/
 
 ; ------------------------------------------------------------------------------
@@ -155,13 +155,49 @@ reset:
 
 	; ----- Set up button pin and timer for switching waveforms
 
+	; Set PORTC5 as input with pullup
+	cbi	DDRC, DDC5
+	sbi	PORTC, PORTC5
+
+	; Allow PCINT13 (button) to trigger pin change interrupts
+	ldi	r25, (1 << PCINT13)
+	sts	PCMSK1, r25
+
+	; Clear any existing pin interrupts
+	in	r25, PCIFR
+	out	PCIFR, r25
+
+	; No need to set PCCSR bits since we won't actually be getting
+	; interrupted, and PCISR bits will be set regardless
+
+	; Hold prescaler in reset so timer remains halted until we need it
+	ldi	r25, (1 << TSM) | \
+		     (1 << PSRSYNC)
+	out	GTCCR, r25
+
+	; Timer 0: CTC mode (reset after compare match)
+	;          Clock source CLK_io / 64
+	ldi	r25, (1 << WGM01) | \
+		     (0 << WGM00)
+	out	TCCR0A, r25
+	ldi	r25, (0 << WGM02) | \
+		     (3 << CS00)
+	out	TCCR0B, r25
+	sbi	TIFR0, OCF0A  ; Make sure the timer flag is clear
+	ldi	r25, 250      ; Count up to 250 (at 16MHz/64 = 250kHz -> 1ms)
+	out	OCR0A, r25
+	ldi	r25, 0        ; Reset the timer counter
+	out	TCNT0, r25
+
+	; Timer prescaler
+
 	; ----- Set up the initial waveform
 
-	; Point Z at the sine table, X at the waveform table
+	; Point Z at the first waveform in the rom, X at the waveform buffer
 	ldi	XL, LOW(waveform)
 	ldi	XH, HIGH(waveform)
-	ldi	ZL, LOW(sine*2)
-	ldi	ZH, HIGH(sine*2)
+	ldi	ZL, LOW(2*wavetable_begin)
+	ldi	ZH, HIGH(2*wavetable_begin)
 
 	; Copy 256 bytes from program memory at Z to data at X
 	ldi	r25, 0x00
@@ -172,26 +208,28 @@ _load_loop:
 	brne	_load_loop
 
 	; Point X at the waveform table (table must be 256-byte aligned)
-	ldi	r23, 0x00            ; Fractional part
+	ldi	r23, 0x00           ; Fractional part
 	ldi	XL, LOW(waveform)   ; Integer low part, must be zero
 	ldi	XH, HIGH(waveform)  ; Integer high part
-	ldi	ZL, LOW(sine*2)
-	ldi	ZH, HIGH(sine*2)
 
 	; Initial step size
 	ldi	r16, 0x00  ; Fractional part
-	ldi	r17, 25  ; Integer part
-
-	; ----- Enable interrupts
+	ldi	r17, 0x04  ; Integer part
 
 	; --------------------------------------------------------------
 loop:
+
+	; --------------------------------------------------------------
 	; ----- Output a sample and advance
 	ld	r25, X
 	add	r23, r16  ; Fractional part
 	adc	XL, r17   ; Integer part
 	out	PORTD, r25
+	; --------------------------------------------------------------
 
+
+
+	; --------------------------------------------------------------
 	; ----- Read the frequency knob and adjust if necessary
 
 	; Trigger a single conversion
@@ -206,8 +244,88 @@ _adc_wait:
 	rjmp	_adc_wait
 	sts	ADCSRA, r25  ; Store back to clear the interrupt flag (w1c)
 
-	; Read value and write to output
+	; Read value and adjust step size
 	lds	r25, ADCH
+	; TODO: adjust step size
+	; --------------------------------------------------------------
+
+
+
+	; --------------------------------------------------------------
+	; ----- Poll for button presses and swap waveforms
+
+	; Test for pin change interrupt flag
+	in	r25, PCIFR
+	sbis	PCIFR, PCIF1
+	rjmp	_button_done
+	; Button pin status has changed
+
+	; ----- Advance to next waveform in rom and copy to waveform LUT
+	; Do this before the switch debouncing so the time spent copying can be
+	; used as part of the wait time for the switch to settle
+
+	; Point X at the ram waveform table (Z already points at next in rom)
+	ldi	XL, LOW(waveform)
+	ldi	XH, HIGH(waveform)
+
+	; Copy 256 bytes from program memory at Z to data at X
+	ldi	r25, 0x00
+_button_load_loop:
+	lpm	r24, Z+
+	st	X+, r24
+	inc	r25
+	brne	_button_load_loop
+	cpi	ZH, HIGH(2*wavetable_end)
+	brne	_button_load_done
+	ldi	ZH, HIGH(2*wavetable_begin)
+_button_load_done:
+
+	; Point X at the waveform table (table must be 256-byte aligned)
+	ldi	r23, 0x00           ; Fractional part
+	ldi	XL, LOW(waveform)   ; Integer low part, must be zero
+	ldi	XH, HIGH(waveform)  ; Integer high part
+
+	; ----- Debounce - wait until pin is quiet for some duration
+
+_button_reset_wait:
+	sbi	PCIFR, PCIF1    ; Clear pin change flag (w1c)
+	sbi	TIFR0, OCF0A	; Clear timer expire flag (w1c)
+	ldi	r25, (1 << TSM) | (1 << PSRSYNC)
+	out	GTCCR, r25      ; Reset prescaler and hold
+	ldi	r25, 0x00       ; Reset timer count value
+	out	TCNT0, r25
+	out	GTCCR, r25      ; Unhalt the prescaler to run the timer
+_button_busyloop:
+	sbic	PCIFR, PCIF1    ; If the pin changed again, reset the clock
+	rjmp	_button_reset_wait
+	sbis	TIFR0, OCF0A    ; If the timer expired, exit the loop
+	rjmp	_button_busyloop
+
+	; ----- Wait for button release
+
+_button_wait_release:
+	sbis	PINC, PINC5
+	rjmp	_button_wait_release
+
+	; ----- Debounce again
+
+_button_reset_wait_2:
+	sbi	PCIFR, PCIF1    ; Clear pin change flag (w1c)
+	sbi	TIFR0, OCF0A	; Clear timer expire flag (w1c)
+	ldi	r25, (1 << TSM) | (1 << PSRSYNC)
+	out	GTCCR, r25      ; Reset prescaler and hold
+	ldi	r25, 0x00       ; Reset timer count value
+	out	TCNT0, r25
+	out	GTCCR, r25      ; Unhalt the prescaler to run the timer
+_button_busyloop_2:
+	sbic	PCIFR, PCIF1    ; If the pin changed again, reset the clock
+	rjmp	_button_reset_wait_2
+	sbis	TIFR0, OCF0A    ; If the timer expired, exit the loop
+	rjmp	_button_busyloop_2
+
+_button_done:
+	; --------------------------------------------------------------
+
 
 	rjmp	loop
 
@@ -242,7 +360,9 @@ waveform:
 
 .cseg
 
-sine:
+; Waveform data must be contiguous
+wavetable_begin:
+; Sine
 	.db	0x80, 0x83, 0x86, 0x89, 0x8c, 0x8f, 0x92, 0x95
 	.db	0x98, 0x9c, 0x9f, 0xa2, 0xa5, 0xa8, 0xab, 0xae
 	.db	0xb0, 0xb3, 0xb6, 0xb9, 0xbc, 0xbf, 0xc1, 0xc4
@@ -276,7 +396,7 @@ sine:
 	.db	0x4f, 0x51, 0x54, 0x57, 0x5a, 0x5d, 0x60, 0x63
 	.db	0x67, 0x6a, 0x6d, 0x70, 0x73, 0x76, 0x79, 0x7c
 
-square:
+; Square
 	.db	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 	.db	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 	.db	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
@@ -310,7 +430,7 @@ square:
 	.db	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 	.db	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 
-rising_saw:
+; Rising sawtooth
 	.db	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07
 	.db	0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
 	.db	0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17
@@ -344,7 +464,7 @@ rising_saw:
 	.db	0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7
 	.db	0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff
 
-falling_saw:
+; Falling sawtooth
 	.db	0xff, 0xfe, 0xfd, 0xfc, 0xfb, 0xfa, 0xf9, 0xf8
 	.db	0xf7, 0xf6, 0xf5, 0xf4, 0xf3, 0xf2, 0xf1, 0xf0
 	.db	0xef, 0xee, 0xed, 0xec, 0xeb, 0xea, 0xe9, 0xe8
@@ -378,7 +498,7 @@ falling_saw:
 	.db	0x0f, 0x0e, 0x0d, 0x0c, 0x0b, 0x0a, 0x09, 0x08
 	.db	0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00
 
-triangle:
+; Triangle
 	.db	0x00, 0x02, 0x04, 0x06, 0x08, 0x0a, 0x0c, 0x0e
 	.db	0x10, 0x12, 0x14, 0x16, 0x18, 0x1a, 0x1c, 0x1e
 	.db	0x20, 0x22, 0x24, 0x26, 0x28, 0x2a, 0x2c, 0x2e
@@ -412,7 +532,7 @@ triangle:
 	.db	0x1f, 0x1d, 0x1b, 0x19, 0x17, 0x15, 0x13, 0x11
 	.db	0x0f, 0x0d, 0x0b, 0x09, 0x07, 0x05, 0x03, 0x01
 
-white_noise:  ; Contains all values 0-255, randomized
+; White noise, contains all values 0-255, randomized
 	.db	0x7a, 0x1b, 0x50, 0xac, 0xa6, 0xf7, 0xf1, 0x82
 	.db	0x6d, 0xfc, 0x24, 0x5d, 0x6e, 0xe9, 0xd6, 0x74
 	.db	0x08, 0x8e, 0x28, 0xf6, 0x13, 0x22, 0xd3, 0xb1
@@ -445,4 +565,5 @@ white_noise:  ; Contains all values 0-255, randomized
 	.db	0x20, 0x8d, 0x53, 0xa8, 0x19, 0x4c, 0x6f, 0x86
 	.db	0xce, 0x92, 0x06, 0xe7, 0x7e, 0xb8, 0x5a, 0x3d
 	.db	0xb5, 0x85, 0x44, 0x16, 0xb7, 0xcc, 0x41, 0xbd
+wavetable_end:
 
