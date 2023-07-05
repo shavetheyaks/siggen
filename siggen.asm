@@ -12,59 +12,95 @@
 .cseg
 
 .org 0x0000
-	rjmp	reset   ; RESET
+	rjmp	reset     ; RESET
 	reti
-	reti            ; INT0
+	reti              ; INT0
 	reti
-	reti            ; INT1
+	reti              ; INT1
 	reti
-	reti            ; PCINT0
+	reti              ; PCINT0
 	reti
-	reti            ; PCINT1
+	rjmp	keypress  ; PCINT1
 	reti
-	reti            ; PCINT2
+	reti              ; PCINT2
 	reti
-	reti            ; WDT
+	reti              ; WDT
 	reti
-	reti            ; TIMER2 COMPA
+	reti              ; TIMER2 COMPA
 	reti
-	reti            ; TIMER2 COMPB
+	reti              ; TIMER2 COMPB
 	reti
-	reti            ; TIMER2 OVF
+	reti              ; TIMER2 OVF
 	reti
-	reti            ; TIMER1 CAPT
+	reti              ; TIMER1 CAPT
 	reti
-	reti            ; TIMER1 COMPA
+	reti              ; TIMER1 COMPA
 	reti
-	reti            ; TIMER1 COMPB
+	reti              ; TIMER1 COMPB
 	reti
-	reti            ; TIMER1 OVF
+	reti              ; TIMER1 OVF
 	reti
-	reti            ; TIMER0 COMPA
+	reti              ; TIMER0 COMPA
 	reti
-	reti            ; TIMER0 COMPB
+	reti              ; TIMER0 COMPB
 	reti
-	reti            ; TIMER0 OVF
+	reti              ; TIMER0 OVF
 	reti
-	reti            ; SPI, STC
+	reti              ; SPI, STC
 	reti
-	reti            ; USART, RX
+	reti              ; USART, RX
 	reti
-	reti            ; USART, UDRE
+	reti              ; USART, UDRE
 	reti
-	reti            ; USART, TX
+	reti              ; USART, TX
 	reti
-	reti            ; ADC
+	reti              ; ADC
 	reti
-	reti            ; EE READY
+	reti              ; EE READY
 	reti
-	reti            ; ANALOG COMP
+	reti              ; ANALOG COMP
 	reti
-	reti            ; TWI
+	reti              ; TWI
 	reti
-	reti            ; SPM READY
+	reti              ; SPM READY
 	reti
 
+
+; ------------------------------------------------------------------------------
+; Registers
+
+; r0
+; r1
+; r2
+; r3
+; r4
+; r5
+; r6
+; r7
+; r8
+; r9
+; r10
+; r11
+; r12
+; r13
+; r14
+; r15
+; r16 l\_   Step size within waveform LUT (8.8 fixed point)
+; r17 h/
+; r18
+; r19
+; r20
+; r21
+; r22
+; r23 ----- Fractional part of pointer to current sample within waveform table
+; r24 ----- Second temporary
+; r25 ----- First temporary
+; r26 l\_X  (X) Pointer to current sample within waveform table
+; r27 h/
+; r28 l\_Y
+; r29 h/
+; r30 l\_Z
+; r31 h/
 
 ; ------------------------------------------------------------------------------
 ; Reset entry point
@@ -119,13 +155,42 @@ reset:
 
 	; ----- Set up button pin and timer for switching waveforms
 
-	; ----- Copy the default waveform to ram
+	; ----- Set up the initial waveform
+
+	; Point Z at the sine table, X at the waveform table
+	ldi	XL, LOW(waveform)
+	ldi	XH, HIGH(waveform)
+	ldi	ZL, LOW(sine*2)
+	ldi	ZH, HIGH(sine*2)
+
+	; Copy 256 bytes from program memory at Z to data at X
+	ldi	r25, 0x00
+_load_loop:
+	lpm	r24, Z+
+	st	X+, r24
+	inc	r25
+	brne	_load_loop
+
+	; Point X at the waveform table (table must be 256-byte aligned)
+	ldi	r23, 0x00            ; Fractional part
+	ldi	XL, LOW(waveform)   ; Integer low part, must be zero
+	ldi	XH, HIGH(waveform)  ; Integer high part
+	ldi	ZL, LOW(sine*2)
+	ldi	ZH, HIGH(sine*2)
+
+	; Initial step size
+	ldi	r16, 0x00  ; Fractional part
+	ldi	r17, 25  ; Integer part
 
 	; ----- Enable interrupts
 
 	; --------------------------------------------------------------
 loop:
-	; Output a sample and advance
+	; ----- Output a sample and advance
+	ld	r25, X
+	add	r23, r16  ; Fractional part
+	adc	XL, r17   ; Integer part
+	out	PORTD, r25
 
 	; ----- Read the frequency knob and adjust if necessary
 
@@ -143,7 +208,6 @@ _adc_wait:
 
 	; Read value and write to output
 	lds	r25, ADCH
-	out	PORTD, r25
 
 	rjmp	loop
 
@@ -170,6 +234,9 @@ keypress:
 
 .dseg
 
+; Waveform table must be 256-byte aligned
+; (The assembler appears to lack an "align" directive!)
+.org	0x100
 waveform:
 	.byte	256
 
