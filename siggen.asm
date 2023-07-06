@@ -9,6 +9,13 @@
 .include "./m328Pdef.inc"
 
 ; ------------------------------------------------------------------------------
+; Configuration
+
+.equ	STEP_MIN = 25    ; Minimum fractional steps through LUT per cycle
+.equ	STEP_MAX = 2560  ; Maximum fractional steps through LUT per cycle
+
+
+; ------------------------------------------------------------------------------
 ; Interrupt vector table
 
 .cseg
@@ -104,6 +111,7 @@
 ; r30 l\_Z  (Z) Pointer to next waveform table in rom
 ; r31 h/
 
+
 ; ------------------------------------------------------------------------------
 ; Reset entry point
 
@@ -141,10 +149,10 @@ reset:
 	sts	ADCSRA, r25
 
 	; REFS  <= 0  Use AREF as reference
-	; ADLAR <= 1  Left-justify ADC results (debug only)
+	; ADLAR <= 0  Do not left-justify results
 	; MUX   <= 0  Select input ADC0
 	ldi	r25, (0 << REFS0) | \
-		     (1 << ADLAR) | \
+		     (0 << ADLAR) | \
 		     (0 << MUX0)
 	sts	ADMUX, r25
 
@@ -219,6 +227,7 @@ _load_loop:
 	ldi	r17, 0x04  ; Integer part
 
 	; --------------------------------------------------------------
+	; Main loop
 loop:
 
 	; --------------------------------------------------------------
@@ -232,7 +241,7 @@ loop:
 
 
 	; --------------------------------------------------------------
-	; ----- Read the frequency knob and adjust if necessary
+	; ----- Read the frequency knob and adjust step size
 
 	; Trigger a single conversion
 	lds	r25, ADCSRA
@@ -247,8 +256,61 @@ _adc_wait:
 	sts	ADCSRA, r25  ; Store back to clear the interrupt flag (w1c)
 
 	; Read value and adjust step size
+	lds	r24, ADCL
 	lds	r25, ADCH
-	; TODO: adjust step size
+
+	; Map V in range (ADC_MIN, ADC_MAX) to (STEP_MIN, STEP_MAX)
+	;
+	;     /                 (STEP_MAX - STEP_MIN) \
+	; X = | (V - ADC_MIN) * --------------------- | + STEP_MIN
+	;     \                  (ADC_MAX - ADC_MIN)  /
+	;
+	; ADC_MIN = 0 and ADC_MAX = 1023 (~1024), so this can be simplified
+	;
+	; We do V * (STEP_MAX - STEP_MIN) first to avoid losing precision
+	; Then divide by (ADC_MAX - ADC_MIN) by shifting right 10 bits
+	; (Which we do by dropping the least-significant byte and shifting 2)
+
+	; Get variables ready
+	ldi	r19, 0x00
+	ldi	r20, LOW(STEP_MAX - STEP_MIN)
+	ldi	r21, HIGH(STEP_MAX - STEP_MIN)
+
+	; Generate partial products
+	mul	r20, r24
+	movw	r6, r0
+	mul	r20, r25
+	movw	r4, r0
+	mul	r21, r24
+	movw	r2, r0
+	mul	r21, r25
+
+	; Add partial products
+	add	r4, r7
+	adc	r3, r5
+	adc	r1, r19  ; carry only
+	add	r2, r4
+	adc	r0, r3
+	adc	r1, r19  ; carry only
+	; Full 32-bit product is in r1:r0:r2:r6
+
+	; Shift down by 10 for division by 1024 (discard r6, shift 2)
+	clc
+	ror	r1
+	ror	r0
+	ror	r2
+	clc
+	ror	r1
+	ror	r0
+	ror	r2
+
+	; Add offset
+	mov	r24, r2
+	mov	r25, r0
+	adiw	r24, STEP_MIN
+
+	; Copy into step size variable
+	movw	r16, r24
 	; --------------------------------------------------------------
 
 
