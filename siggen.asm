@@ -203,24 +203,12 @@ reset:
 
 	; ----- Set up the initial waveform
 
-	; Point Z at the first waveform in the rom, X at the waveform buffer
-	ldi	XL, LOW(waveform)
-	ldi	XH, HIGH(waveform)
+	; Point Z at the first waveform in the rom
 	ldi	ZL, LOW(2*wavetable_begin)
 	ldi	ZH, HIGH(2*wavetable_begin)
 
-	; Copy 256 bytes from program memory at Z to data at X
-	ldi	r25, 0x00
-_load_loop:
-	lpm	r24, Z+
-	st	X+, r24
-	inc	r25
-	brne	_load_loop
-
-	; Point X at the waveform table (table must be 256-byte aligned)
-	ldi	r23, 0x00           ; Fractional part
-	ldi	XL, LOW(waveform)   ; Integer low part, must be zero
-	ldi	XH, HIGH(waveform)  ; Integer high part
+	; Advance waveforms to load the LUT into ram and reset the cursor
+	rcall	next_waveform
 
 	; Initial step size
 	ldi	r16, 0x00  ; Fractional part
@@ -324,74 +312,90 @@ _adc_wait:
 	rjmp	_button_done
 	; Button pin status has changed
 
-	; ----- Advance to next waveform in rom and copy to waveform LUT
+	; Advance to next waveform in rom and copy to waveform LUT
 	; Do this before the switch debouncing so the time spent copying can be
 	; used as part of the wait time for the switch to settle
+	rcall	next_waveform
 
-	; Point X at the ram waveform table (Z already points at next in rom)
-	ldi	XL, LOW(waveform)
-	ldi	XH, HIGH(waveform)
-
-	; Copy 256 bytes from program memory at Z to data at X
-	ldi	r25, 0x00
-_button_load_loop:
-	lpm	r24, Z+
-	st	X+, r24
-	inc	r25
-	brne	_button_load_loop
-	cpi	ZH, HIGH(2*wavetable_end)
-	brne	_button_load_done
-	ldi	ZH, HIGH(2*wavetable_begin)
-_button_load_done:
-
-	; Point X at the waveform table (table must be 256-byte aligned)
-	ldi	r23, 0x00           ; Fractional part
-	ldi	XL, LOW(waveform)   ; Integer low part, must be zero
-	ldi	XH, HIGH(waveform)  ; Integer high part
-
-	; ----- Debounce - wait until pin is quiet for some duration
-
-_button_reset_wait:
-	sbi	PCIFR, PCIF1    ; Clear pin change flag (w1c)
-	sbi	TIFR0, OCF0A	; Clear timer expire flag (w1c)
-	ldi	r25, (1 << TSM) | (1 << PSRSYNC)
-	out	GTCCR, r25      ; Reset prescaler and hold
-	ldi	r25, 0x00       ; Reset timer count value
-	out	TCNT0, r25
-	out	GTCCR, r25      ; Unhalt the prescaler to run the timer
-_button_busyloop:
-	sbic	PCIFR, PCIF1    ; If the pin changed again, reset the clock
-	rjmp	_button_reset_wait
-	sbis	TIFR0, OCF0A    ; If the timer expired, exit the loop
-	rjmp	_button_busyloop
-
-	; ----- Wait for button release
-
+	; Debounce, wait for button release, and debounce again
+	rcall	debounce
 _button_wait_release:
 	sbis	PINC, PINC5
 	rjmp	_button_wait_release
-
-	; ----- Debounce again
-
-_button_reset_wait_2:
-	sbi	PCIFR, PCIF1    ; Clear pin change flag (w1c)
-	sbi	TIFR0, OCF0A	; Clear timer expire flag (w1c)
-	ldi	r25, (1 << TSM) | (1 << PSRSYNC)
-	out	GTCCR, r25      ; Reset prescaler and hold
-	ldi	r25, 0x00       ; Reset timer count value
-	out	TCNT0, r25
-	out	GTCCR, r25      ; Unhalt the prescaler to run the timer
-_button_busyloop_2:
-	sbic	PCIFR, PCIF1    ; If the pin changed again, reset the clock
-	rjmp	_button_reset_wait_2
-	sbis	TIFR0, OCF0A    ; If the timer expired, exit the loop
-	rjmp	_button_busyloop_2
+	rcall	debounce
 
 _button_done:
 	; --------------------------------------------------------------
 
 
 	rjmp	loop
+
+
+; ------------------------------------------------------------------------------
+; Subroutines
+
+
+next_waveform:
+	; Throughout execution, Z points to the next wavetable to be loaded into
+	; the waveform buffer.  This subroutine advances the Z pointer as it
+	; copies, and wraps it back around to the beginning of the wavetable if
+	; it reaches the end.
+
+	; Copy the next waveform from the wavetable ROM into the waveform buffer
+	ldi	XL, LOW(waveform)            ; Point X at the waveform buffer
+	ldi	XH, HIGH(waveform)
+	ldi	r25, 0x00
+_next_waveform_loop:
+	lpm	r24, Z+                      ; Load a byte from wavetale
+	st	X+, r24                      ; Store it to the waveform buffer
+	inc	r25                          ; Advance counter
+	brne	_next_waveform_loop          ; Exit when counter overflows to zero
+
+	; Handle wrap-around after cycling through all waveforms
+	; Waveforms are all 256 bytes long, so the lower byte of Z will always
+	; be the same after copying, so no need to reload it
+	cpi	ZH, HIGH(2*wavetable_end)    ; Did we copy the final waveform?
+	brne	_next_waveform_nowrap
+	ldi	ZH, HIGH(2*wavetable_begin)  ; If so, reset to the first waveform
+_next_waveform_nowrap:
+
+	; Reset the current sample pointer
+	ldi	r23, 0x00                    ; Fractional part
+	ldi	XL, LOW(waveform)            ; Integer low part
+	ldi	XH, HIGH(waveform)           ; Integer high part
+
+	ret
+
+
+debounce:
+	; Debouncing is done by waiting for the pin to be quiet (no transitions)
+	; for some specified amount of time (1ms for now, see OCR0A in the init
+	; section above).
+	;
+	; We run the timer for 1ms and run in a busyloop until it expires.  If
+	; during this loop the pin change flag indicates that there was a
+	; transition, we reset the timer and wait again.
+
+_debounce_reset:
+	sbi	PCIFR, PCIF1         ; Ensure pin change flag is cleared (w1c)
+	sbi	TIFR0, OCF0A         ; Ensure timer expire flag is cleared (w1c)
+
+	; PSRSYNC resets the timer clock prescaler
+	; TSM forces the prescaler to be held in reset
+	ldi	r25, (1 << TSM) | \
+		     (1 << PSRSYNC)
+	out	GTCCR, r25           ; Reset the prescaler and halt
+	ldi	r25, 0x00
+	out	TCNT0, r25           ; Reset timer count value
+	out	GTCCR, r25           ; Unhalt the prescaler to run the timer
+_debounce_busyloop:
+	sbic	PCIFR, PCIF1         ; If the pin changed again, reset and retry
+	rjmp	_debounce_reset
+	sbis	TIFR0, OCF0A         ; IF the timer expired, exit the loop
+	rjmp	_debounce_busyloop
+
+	ret
+
 
 
 ; ------------------------------------------------------------------------------
