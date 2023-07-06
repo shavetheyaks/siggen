@@ -121,9 +121,9 @@ reset:
 	eor	r25, r25
 	out	SREG, r25
 	ldi	r25, HIGH(RAMEND)
-	ldi	r24, LOW(RAMEND)
 	out	SPH, r25
-	out	SPL, r24
+	ldi	r25, LOW(RAMEND)
+	out	SPL, r25
 
 	; ----- Set up PORTD for outputting samples, initial output to center of range
 
@@ -155,11 +155,6 @@ reset:
 		     (0 << ADLAR) | \
 		     (0 << MUX0)
 	sts	ADMUX, r25
-
-	; Disable digital input on ADC pin
-	lds	r25, DIDR0
-	andi	r25, ~(1 << ADC0D)
-	sts	DIDR0, r25
 
 	; ADCSRB is for the comparator and autotrigger, neither are active
 
@@ -307,7 +302,6 @@ _adc_wait:
 	; ----- Poll for button presses and swap waveforms
 
 	; Test for pin change interrupt flag
-	in	r25, PCIFR
 	sbis	PCIFR, PCIF1
 	rjmp	_button_done
 	; Button pin status has changed
