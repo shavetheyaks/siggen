@@ -216,9 +216,9 @@ loop:
 	; --------------------------------------------------------------
 	; ----- Output a sample and advance
 	ld	r25, X
-	add	r23, r16  ; Fractional part
-	adc	XL, r17   ; Integer part
 	out	PORTD, r25
+	add	r23, r16    ; Fractional part
+	adc	XL, r17     ; Integer low part (do not carry to high part)
 	; --------------------------------------------------------------
 
 
