@@ -259,6 +259,25 @@ _adc_wait:
 	ldi	r20, LOW(STEP_MAX - STEP_MIN)
 	ldi	r21, HIGH(STEP_MAX - STEP_MIN)
 
+	; 16-bit multiplication from 8-bit multiplications
+	; Like multiplying two two-digit numbers, but each "digit" is now a byte
+	;
+	;               r25  r24
+	;                 A    B  <- value from ADC
+	;               r21  r20
+	;            *    C    D  <- scale factor (STEP_MAX - STEP_MIN)
+	;           ------------
+	;                r7   r6
+	;               DBH  DBL
+	;           r5   r4
+	;          DAH  DAL
+	;           r3   r2
+	;          CBH  CBL
+	;      r1   r0
+	;  +  CAH  CAL
+	;  ---------------------
+	;      r1   r0   r2   r6  <- 32-bit result
+
 	; Generate partial products
 	mul	r20, r24
 	movw	r6, r0
