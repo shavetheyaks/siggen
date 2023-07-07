@@ -320,8 +320,8 @@ _adc_wait:
 	; --------------------------------------------------------------
 	; ----- Poll for button presses and swap waveforms
 
-	; Test for pin change interrupt flag
-	sbis	PCIFR, PCIF1
+	; Test for pushbutton pin pulled low
+	sbic	PINC, PINC5
 	rjmp	_button_done
 	; Button pin status has changed
 
