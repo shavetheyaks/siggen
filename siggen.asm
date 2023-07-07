@@ -194,8 +194,6 @@ reset:
 	ldi	r25, 0        ; Reset the timer counter
 	out	TCNT0, r25
 
-	; Timer prescaler
-
 	; ----- Set up the initial waveform
 
 	; Point Z at the first waveform in the rom
