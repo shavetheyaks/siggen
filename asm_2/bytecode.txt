@@ -1,0 +1,114 @@
+Bytecode "registers" and calling convention
+
+v0 - Temporary / Return value
+v1 \
+v2 |
+v3 |
+v4 | Arguments / Non-saved
+v5 |
+v6 |
+v7 /
+v8 \
+v9 |
+va | Saved
+vb |
+vc /
+vd - SP
+ve - RA
+vf - Flags
+
+
+
+Instruction encoding:
+
+		v[x], v[y]
+0XY0	add
+0XY1	sub
+0XY2	and
+0XY3	or
+0XY4	xor
+0XY5	nor
+0XY6	mov
+0XY7	mul
+0XY8	div
+0XY9	cmp
+0XYA	test
+0XYB
+0XYC
+0XYD
+0XYE
+0XYF	jal
+
+		v[x], imm32
+1XY0	add
+1XY1	sub
+1XY2	and
+1XY3	or
+1XY4	xor
+1XY5	nor
+1XY6	mov
+1XY7	mul
+1XY8	div
+1XY9	cmp
+1XYA	test
+1XYB
+1XYC
+1XYD
+1XYE
+1XYF	jal
+
+		v[x], y
+2XY0	add
+2XY1	sub
+2XY2	shl
+2XY3	shrl
+2XY4	shra
+2XY5	rol
+2XY6	ror
+2XY7
+2XY8
+2XY9	spi
+2XYA	mft
+2XYB	mtt
+2XYC	din
+2XYD	dout
+2XYE	ain
+2XYF	aout
+
+		v[x], v[y]+n
+3XYn	ldb
+4XYn	ldh
+5XYn	ldw
+6XYn	stb
+7XYn	sth
+8XYn	stw
+
+9
+
+Annn	avr	zext(nnn)
+
+		pc+sext(nn)
+B0nn	bz
+B1nn	bnz
+B2nn	bgt
+B3nn	blt
+B4nn	blte
+B5nn	bgte
+B6nn	bc
+B7nn	bnc
+B8nn
+B9nn
+BAnn
+BBnn
+BCnn
+BDnn
+BEnn
+BFnn
+
+Cnnn	jal	pc+sext(nnn) (implicit VE as link register)
+
+Dnnn	jmp	pc+sext(nnn)
+
+E
+F
+
