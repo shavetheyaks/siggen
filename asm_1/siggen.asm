@@ -61,7 +61,7 @@
 ; - Handle user input (waveform select button and frequency knob)
 ; - Output a sample from the waveform LUT
 ;
-; User input handling can happen on a liesurely timescale (at the very least
+; User input handling can happen on a leisurely timescale (at the very least
 ; once every 200ms (5 Hz), and precise timing is not necessary)
 ;
 ; Sample output must happen as quickly as possible and with a fixed number of
