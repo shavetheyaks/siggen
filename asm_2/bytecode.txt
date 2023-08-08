@@ -21,6 +21,7 @@ vf - Flags
 
 Instruction encoding:
 
+FXYN
 		v[x], v[y]
 0XY0	add
 0XY1	sub
