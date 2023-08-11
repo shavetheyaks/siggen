@@ -15,19 +15,19 @@
 ; r8   |
 ; r9  h/
 ; r10 l\
-; r11  |___ Operand B / instruction result part 2 (mul/div)
+; r11  |___ Operand B
 ; r12  |
 ; r13 h/
-; r14 ----- New flags register value (VF)
+; r14 ----- Flags register value (VF)
 ; r15 ----- Saved instruction F field
 ; r16 l\___ Pointer to V[X]
 ; r17 h/
 ; r18
 ; r19
 ; r20
-; r21
-; r22
-; r23
+; r21 ----- Temp
+; r22 ----- Temp
+; r23 ----- Temp
 ; r24 ----- Temp
 ; r25 ----- Temp
 ; r26 l\_X  HARE reserved
@@ -101,6 +101,20 @@
 
 
 ; ------------------------------------------------------------------------------
+; Bytecode
+
+entry:
+	.dw	0x1106
+	.dw	  0xbeef
+	.dw	  0xdead
+	.dw	0x1206
+	.dw	  0xcafe
+	.dw	  0xbeef
+	.dw	0x0120
+	.dw	0xdff8
+
+
+; ------------------------------------------------------------------------------
 ; Reset entry point
 
 reset:
@@ -116,6 +130,10 @@ reset:
 	; ----- Reset interpreter state
 
 	; TODO
+	ldi	r25, LOW(entry)
+	mov	r2, r25
+	ldi	r25, HIGH(entry)
+	mov	r3, r25
 
 	; --------------------------------------------------------------
 	; Main loop
@@ -164,6 +182,15 @@ loop:
 	ijmp	           ; Jump to whatever code decodes the other operand
 _decode_done:
 
+	; Load flags value
+	ldi	r24, 0x3c  ; Offset of the VF register (0xf * 4)
+	clr	r25        ; Add offset to base address of registers
+	ldi	ZL, LOW(interp_regs)
+	ldi	ZH, HIGH(interp_regs)
+	add	ZL, r24
+	adc	ZH, r25
+	ld	r14, Z
+
 	; Dispatch based on instruction F field
 	mov	r24, r15   ; Recover saved F field from instruction
 	clr	r25        ; Add base address of instruction-dispatch jumptable
@@ -173,7 +200,27 @@ _decode_done:
 	adc	ZH, r25
 	ijmp               ; Jump to whatever code runs this type of instruction
 _dispatch_done_writeback_flags:
-	ldi	r24, 0xc3  ; Index of the VF register (0xf * 4)
+	; Get rid of the N and Z flags, we're making our own
+	ldi	r25, 0xf9
+	and	r14, r25
+
+	; Compute N flag
+	ldi	r25, 0x04
+	sbrc	r9, 7
+	or	r14, r25
+
+	; Compute Z flag
+	ldi	r24, 0x02
+	clr	r25
+	or	r25, r6
+	or	r25, r7
+	or	r25, r8
+	or	r25, r9
+	breq	_no_z
+	or	r14, r24
+_no_z:
+
+	ldi	r24, 0x3c  ; Offset of the VF register (0xf * 4)
 	clr	r25        ; Add offset to base address of registers
 	ldi	ZL, LOW(interp_regs)
 	ldi	ZH, HIGH(interp_regs)
@@ -195,22 +242,22 @@ _dispatch_done:
 ; Operand decoding
 
 operand_jumptable:
-	.dw	operand_VY
-	.dw	operand_imm32
-	.dw	operand_Y
-	.dw	operand_VY_N
-	.dw	operand_VY_N
-	.dw	operand_VY_N
-	.dw	operand_VY_N
-	.dw	operand_VY_N
-	.dw	operand_VY_N
-	.dw	operand_none
-	.dw	operand_0NNN
-	.dw	operand_PC_ssNN
-	.dw	operand_PC_sNNN
-	.dw	operand_PC_sNNN
-	.dw	operand_none
-	.dw	operand_none
+	rjmp	operand_VY
+	rjmp	operand_imm32
+	rjmp	operand_Y
+	rjmp	operand_VY_N
+	rjmp	operand_VY_N
+	rjmp	operand_VY_N
+	rjmp	operand_VY_N
+	rjmp	operand_VY_N
+	rjmp	operand_VY_N
+	rjmp	operand_VY_N
+	rjmp	operand_none
+	rjmp	operand_PC_ssNN
+	rjmp	operand_PC_sNNN
+	rjmp	operand_PC_sNNN
+	rjmp	operand_0NNN
+	rjmp	operand_VY_N
 
 
 ; ----- V[Y]
@@ -359,76 +406,76 @@ operand_none:
 ; Instruction dispatch
 
 f_dispatch_jumptable:
-	.dw	dispatch_alu
-	.dw	dispatch_alu
-	.dw	dispatch_imm4
-	.dw	exec_ldb
-	.dw	exec_ldh
-	.dw	exec_ldw
-	.dw	exec_stb
-	.dw	exec_sth
-	.dw	exec_stw
-	.dw	exec_nop
-	.dw	exec_avr
-	.dw	dispatch_branch
-	.dw	exec_jal_with_ve
-	.dw	exec_jmp
-	.dw	exec_nop
-	.dw	exec_nop
+	rjmp	dispatch_alu
+	rjmp	dispatch_alu
+	rjmp	dispatch_imm4
+	rjmp	exec_ldb
+	rjmp	exec_ldh
+	rjmp	exec_ldw
+	rjmp	exec_stb
+	rjmp	exec_sth
+	rjmp	exec_stw
+	rjmp	exec_lpb
+	rjmp	exec_lph
+	rjmp	dispatch_branch
+	rjmp	exec_jal_with_ve
+	rjmp	exec_jmp
+	rjmp	exec_ext
+	rjmp	exec_lpw
 
 alu_dispatch_jumptable:
-	.dw	exec_add
-	.dw	exec_sub
-	.dw	exec_and
-	.dw	exec_or
-	.dw	exec_xor
-	.dw	exec_nor
-	.dw	exec_mov
-	.dw	exec_mul
-	.dw	exec_div
-	.dw	exec_cmp
-	.dw	exec_test
-	.dw	exec_nop
-	.dw	exec_nop
-	.dw	exec_nop
-	.dw	exec_nop
-	.dw	exec_jal
+	rjmp	exec_add
+	rjmp	exec_sub
+	rjmp	exec_and
+	rjmp	exec_or
+	rjmp	exec_xor
+	rjmp	exec_nor
+	rjmp	exec_mov
+	rjmp	exec_mul
+	rjmp	exec_div
+	rjmp	exec_cmp
+	rjmp	exec_test
+	rjmp	exec_nop
+	rjmp	exec_nop
+	rjmp	exec_nop
+	rjmp	exec_nop
+	rjmp	exec_jal
 
 imm4_dispatch_jumptable:
-	.dw	exec_add
-	.dw	exec_sub
-	.dw	exec_shl
-	.dw	exec_shrl
-	.dw	exec_shra
-	.dw	exec_rol
-	.dw	exec_ror
-	.dw	exec_nop
-	.dw	exec_nop
-	.dw	exec_spi
-	.dw	exec_mft
-	.dw	exec_mtt
-	.dw	exec_din
-	.dw	exec_dout
-	.dw	exec_ain
-	.dw	exec_aout
+	rjmp	exec_add
+	rjmp	exec_sub
+	rjmp	exec_mov
+	rjmp	exec_shl
+	rjmp	exec_shrl
+	rjmp	exec_shra
+	rjmp	exec_rol
+	rjmp	exec_ror
+	rjmp	exec_nop
+	rjmp	exec_spi
+	rjmp	exec_mft
+	rjmp	exec_mtt
+	rjmp	exec_din
+	rjmp	exec_dout
+	rjmp	exec_ain
+	rjmp	exec_aout
 
 branch_dispatch_jumptable:
-	.dw	exec_bz
-	.dw	exec_bnz
-	.dw	exec_bgt
-	.dw	exec_blt
-	.dw	exec_blte
-	.dw	exec_bgte
-	.dw	exec_bc
-	.dw	exec_bnc
-	.dw	exec_nop
-	.dw	exec_nop
-	.dw	exec_nop
-	.dw	exec_nop
-	.dw	exec_nop
-	.dw	exec_nop
-	.dw	exec_nop
-	.dw	exec_nop
+	rjmp	exec_bz
+	rjmp	exec_bnz
+	rjmp	exec_bgt
+	rjmp	exec_blt
+	rjmp	exec_blte
+	rjmp	exec_bgte
+	rjmp	exec_bc
+	rjmp	exec_bnc
+	rjmp	exec_nop
+	rjmp	exec_nop
+	rjmp	exec_nop
+	rjmp	exec_nop
+	rjmp	exec_nop
+	rjmp	exec_nop
+	rjmp	exec_nop
+	rjmp	exec_nop
 
 
 dispatch_alu:
@@ -463,23 +510,327 @@ dispatch_branch:
 
 
 exec_nop:
+	rjmp	_dispatch_done
+
+
 exec_add:
+	add	r6, r10
+	adc	r7, r11
+	adc	r8, r12
+	adc	r9, r13
+
+	; Flags
+	in	r24, SREG  ; Load real flags and keep xxxSVxxC
+	andi	r24, 0x19
+	ldi	r25, 0xe6  ; Clear old flag bits that we're taking from SREG
+	and	r14, r25
+	or	r14, r24   ; Add flags from SREG into interpreter flags
+
+	rjmp	_dispatch_done_writeback_flags
+
+
 exec_sub:
+	sub	r6, r10
+	sbc	r7, r11
+	sbc	r8, r12
+	sbc	r9, r13
+
+	; Flags
+	in	r24, SREG  ; Load real flags and keep xxxSVxxC
+	andi	r24, 0x19
+	ldi	r25, 0xe6  ; Clear old flag bits that we're taking from SREG
+	and	r14, r25
+	or	r14, r24   ; Add flags from SREG into interpreter flags
+
+	rjmp	_dispatch_done_writeback_flags
+
+
 exec_and:
+	and	r6, r10
+	and	r7, r11
+	and	r8, r12
+	and	r9, r13
+
+	; Flags
+	in	r24, SREG  ; Load real flags and keep xxxSVxxx
+	andi	r24, 0x18
+	ldi	r25, 0xe7  ; Clear old flag bits that we're taking from SREG
+	and	r14, r25
+	or	r14, r24   ; Add flags from SREG into interpreter flags
+
+	rjmp	_dispatch_done_writeback_flags
+
+
 exec_or:
+	or	r6, r10
+	or	r7, r11
+	or	r8, r12
+	or	r9, r13
+
+	; Flags
+	in	r24, SREG  ; Load real flags and keep xxxSVxxx
+	andi	r24, 0x18
+	ldi	r25, 0xe7  ; Clear old flag bits that we're taking from SREG
+	and	r14, r25
+	or	r14, r24   ; Add flags from SREG into interpreter flags
+
+	rjmp	_dispatch_done_writeback_flags
+
+
 exec_xor:
+	eor	r6, r10
+	eor	r7, r11
+	eor	r8, r12
+	eor	r9, r13
+
+	; Flags
+	in	r24, SREG  ; Load real flags and keep xxxSVxxx
+	andi	r24, 0x18
+	ldi	r25, 0xe7  ; Clear old flag bits that we're taking from SREG
+	and	r14, r25
+	or	r14, r24   ; Add flags from SREG into interpreter flags
+
+	rjmp	_dispatch_done_writeback_flags
+
+
 exec_nor:
+	or	r6, r10
+	or	r7, r11
+	or	r8, r12
+	or	r9, r13
+	com	r6
+	com	r7
+	com	r8
+	com	r9
+
+	; Flags
+	in	r24, SREG  ; Load real flags and keep xxxSVxxx
+	andi	r24, 0x18
+	ldi	r25, 0xe7  ; Clear old flag bits that we're taking from SREG
+	and	r14, r25
+	or	r14, r24   ; Add flags from SREG into interpreter flags
+
+	rjmp	_dispatch_done_writeback_flags
+
+
 exec_mov:
+	movw	r6, r10
+	movw	r8, r12
+	rjmp	_dispatch_done_writeback_reg
+
+
 exec_mul:
+	clr	r21        ; Zero for adding carries
+	clr	r22        ; Temporary for result
+	clr	r23
+	clr	r24
+	clr	r25
+
+	; Multiply, discarding all overflows because it's hilarious
+	mul	r6, r10
+	movw	r22, r0
+	mul	r7, r11
+	movw	r24, r0
+	mul	r6, r11
+	add	r23, r0
+	adc	r24, r1
+	adc	r25, r21
+	mul	r7, r10
+	add	r23, r0
+	adc	r24, r1
+	adc	r25, r21
+	mul	r6, r12
+	add	r24, r0
+	adc	r25, r1
+	mul	r8, r10
+	add	r24, r0
+	adc	r25, r1
+	mul	r7, r12
+	add	r25, r0
+	mul	r8, r11
+	add	r25, r0
+	mul	r6, r13
+	add	r25, r0
+	mul	r9, r10
+	add	r25, r0
+
+	; Copy temporary to result
+	movw	r6, r22
+	movw	r8, r24
+
+	; Don't compute any other flags, LOL!
+	rjmp	_dispatch_done_writeback_flags
+
+
 exec_div:
+	; TODO
+	rjmp	_dispatch_done
+
+
 exec_cmp:
+	movw	r22, r6
+	movw	r24, r8
+	sub	r22, r10
+	sbc	r23, r11
+	sbc	r24, r12
+	sbc	r25, r13
+	in	r21, SREG
+	andi	r21, 0xfd
+
+	or	r25, r24
+	or	r25, r23
+	or	r25, r22
+	breq	_cmp_z
+	ori	r21, 0x02
+_cmp_z:
+	; TODO: Flags
+	rjmp	_dispatch_done_writeback_flags
+
+
 exec_test:
+	clr	r0
+	mov	r25, r14
+	andi	r25, 0xfd
+
+	mov	r24, r6
+	and	r24, r10
+	or	r0, r24
+
+	mov	r24, r7
+	and	r24, r11
+	or	r0, r24
+
+	mov	r24, r8
+	and	r24, r12
+	or	r0, r24
+
+	mov	r24, r9
+	and	r24, r13
+	or	r0, r24
+
+	breq	_test_z
+	ori	r25, 0x02
+_test_z:
+	mov	r14, r25
+	rjmp	_dispatch_done_writeback_flags
+
+
+exec_jal_with_ve:
+	; Change destination pointer to V[E]
+	ldi	r24, 0x0e*4
+	clr	r25
+	ldi	r16, LOW(interp_regs)
+	ldi	r17, HIGH(interp_regs)
+	add	r16, r24
+	adc	r17, r25
+	; Fall-through to normal jump-and-link code
 exec_jal:
+	movw	r6, r2
+	clr	r8
+	clr	r9
+	movw	r2, r10
+	rjmp	_dispatch_done_writeback_reg
+
+
 exec_shl:
+	clr	r24        ; Zero for adding carries
+	clr	r25        ; To accumulate carries
+
+_shl_loop:
+	dec	r10        ; Decrement counter
+	brcs	_shl_done
+
+	lsl	r6         ; Shift left by a bit
+	rol	r7
+	rol	r8
+	rol	r9
+	adc	r25, r24   ; Accumulate carries
+
+	rjmp	_shl_loop
+_shl_done:
+	; TODO: CV flags
+	rjmp	_dispatch_done
+
+
 exec_shrl:
+	clr	r24        ; Zero for adding carries
+	clr	r25        ; To accumulate carries
+
+_shrl_loop:
+	dec	r10        ; Decrement counter
+	brcs	_shrl_done
+
+	lsr	r9
+	ror	r8
+	ror	r7
+	ror	r6
+	adc	r25, r24   ; Accumulate carries
+
+	rjmp	_shrl_loop
+_shrl_done:
+	; TODO: CV flags
+	rjmp	_dispatch_done
+
+
 exec_shra:
+	clr	r24        ; Zero for adding carries
+	clr	r25        ; To accumulate carries
+
+_shra_loop:
+	dec	r10        ; Decrement counter
+	brcs	_shra_done
+
+	asr	r9
+	ror	r8
+	ror	r7
+	ror	r6
+	adc	r25, r24   ; Accumulate carries
+
+	rjmp	_shra_loop
+_shra_done:
+	; TODO: CV flags
+	rjmp	_dispatch_done
+
+
 exec_rol:
+_rol_loop:
+	dec	r10        ; Decrement counter
+	brcs	_rol_done
+
+	clc                ; Pull highest bit into carry
+	sbrc	r9, 7
+	sec
+	rol	r6
+	rol	r7
+	rol	r8
+	rol	r9
+
+	rjmp	_rol_done
+_rol_done:
+	; TODO: Flags?
+	rjmp	_dispatch_done
+
+
 exec_ror:
+_ror_loop:
+	dec	r10        ; Decrement counter
+	brcs	_ror_done
+
+	clc                ; Pull lowest bit into carry
+	sbrc	r6, 0
+	sec
+	ror	r9
+	ror	r8
+	ror	r7
+	ror	r6
+
+	rjmp	_ror_done
+_ror_done:
+	; TODO: Flags?
+	rjmp	_dispatch_done
+
+
+	; TODO: I/O instructions
 exec_spi:
 exec_mft:
 exec_mtt:
@@ -487,13 +838,130 @@ exec_din:
 exec_dout:
 exec_ain:
 exec_aout:
+	rjmp	_dispatch_done
+
+
 exec_ldb:
+	; Load byte
+	movw	ZL, r10
+	ld	r6, Z+
+
+	; Sign extend
+	clr	r0
+	sbrc	r6, 7
+	com	r0
+	mov	r7, r0
+	mov	r8, r0
+	mov	r9, r0
+
+	rjmp	_dispatch_done
+
+
 exec_ldh:
+	; Load halfword
+	movw	ZL, r10
+	ld	r6, Z+
+	ld	r7, Z+
+
+	; Sign extend
+	clr	r0
+	sbrc	r7, 7
+	com	r0
+	mov	r8, r0
+	mov	r9, r0
+
+	rjmp	_dispatch_done
+
+
 exec_ldw:
+	; Load word
+	movw	ZL, r10
+	ld	r6, Z+
+	ld	r7, Z+
+	ld	r8, Z+
+	ld	r9, Z+
+
+	rjmp	_dispatch_done
+
+
+exec_lpb:
+	; Load byte
+	movw	ZL, r10
+	lpm	r6, Z+
+
+	; Sign extend
+	clr	r0
+	sbrc	r6, 7
+	com	r0
+	mov	r7, r0
+	mov	r8, r0
+	mov	r9, r0
+
+	rjmp	_dispatch_done
+
+
+exec_lph:
+	; Load halfword
+	movw	ZL, r10
+	lpm	r6, Z+
+	lpm	r7, Z+
+
+	; Sign extend
+	clr	r0
+	sbrc	r7, 7
+	com	r0
+	mov	r8, r0
+	mov	r9, r0
+
+	rjmp	_dispatch_done
+
+
+exec_lpw:
+	; Load word
+	movw	ZL, r10
+	lpm	r6, Z+
+	lpm	r7, Z+
+	lpm	r8, Z+
+	lpm	r9, Z+
+
+	rjmp	_dispatch_done
+
+
 exec_stb:
+	movw	ZL, r10
+	st	Z+, r6
+	rjmp	_dispatch_done
+
+
 exec_sth:
+	movw	ZL, r10
+	st	Z+, r6
+	st	Z+, r7
+	rjmp	_dispatch_done
+
+
 exec_stw:
-exec_avr:
+	movw	ZL, r10
+	st	Z+, r6
+	st	Z+, r7
+	st	Z+, r8
+	st	Z+, r9
+	rjmp	_dispatch_done
+
+
+exec_ext:
+	; Return address into temporaries
+	ldi	r24, LOW(_ext_done)
+	ldi	r25, HIGH(_ext_done)
+
+	; Execute at the target address
+	movw	ZL, r10
+	ijmp
+_ext_done:
+	rjmp	_dispatch_done
+
+
+	; TODO: conditional branches
 exec_bz:
 exec_bnz:
 exec_bgt:
@@ -502,8 +970,8 @@ exec_blte:
 exec_bgte:
 exec_bc:
 exec_bnc:
-exec_jal_with_ve:
 exec_jmp:
+	movw	r2, r10
 	rjmp	_dispatch_done
 
 

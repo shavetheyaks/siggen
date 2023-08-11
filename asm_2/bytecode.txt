@@ -61,12 +61,12 @@ FXYN
 		v[x], y
 2XY0	add
 2XY1	sub
-2XY2	shl
-2XY3	shrl
-2XY4	shra
-2XY5	rol
-2XY6	ror
-2XY7
+2XY2	mov
+2XY3	shl
+2XY4	shrl
+2XY5	shra
+2XY6	rol
+2XY7	ror
 2XY8
 2XY9	spi
 2XYA	mft
@@ -83,10 +83,8 @@ FXYN
 6XYn	stb
 7XYn	sth
 8XYn	stw
-
-9
-
-Annn	avr	zext(nnn)
+9XYn	lpb	(program rom load)
+AXYn	lph	(program rom load)
 
 		pc+sext(nn)
 B0nn	bz
@@ -107,9 +105,8 @@ BEnn
 BFnn
 
 Cnnn	jal	pc+sext(nnn) (implicit VE as link register)
-
 Dnnn	jmp	pc+sext(nnn)
+Ennn	ext	zext(nnn)
 
-E
-F
+FXYn	lpw	v[x], v[y]+n (program rom load)
 
