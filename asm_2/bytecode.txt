@@ -1,21 +1,21 @@
 Bytecode "registers" and calling convention
 
-v0 - Temporary / Return value
+v0 -- Temporary / Return value
 v1 \
 v2 |
-v3 |
-v4 | Arguments / Non-saved
+v3 |_ Arguments / Non-saved
+v4 |
 v5 |
-v6 |
-v7 /
-v8 \
-v9 |
-va | Saved
+v6 /
+v7 \
+v8 |
+v9 |_ Saved
+va |
 vb |
 vc /
-vd - SP
-ve - RA
-vf - Flags
+vd -- SP
+ve -- RA
+vf -- Flags
 
 
 
@@ -87,22 +87,22 @@ FXYN
 AXYn	lph	(program rom load)
 
 		pc+sext(nn)
-B0nn	bz
-B1nn	bnz
-B2nn	bgt
-B3nn	blt
-B4nn	blte
-B5nn	bgte
-B6nn	bc
-B7nn	bnc
-B8nn
-B9nn
-BAnn
-BBnn
-BCnn
-BDnn
-BEnn
-BFnn
+B0nn	jtab	v[0], pc+sext(nn) (jump table - jump to v[0]+pc+sext(nn))
+B1nn	jtab	v[1], pc+sext(nn) (jump table - jump to v[1]+pc+sext(nn))
+B2nn	jtab	v[2], pc+sext(nn) (jump table - jump to v[2]+pc+sext(nn))
+B3nn	jtab	v[3], pc+sext(nn) (jump table - jump to v[3]+pc+sext(nn))
+B4nn	jtab	v[4], pc+sext(nn) (jump table - jump to v[4]+pc+sext(nn))
+B5nn	jtab	v[5], pc+sext(nn) (jump table - jump to v[5]+pc+sext(nn))
+B6nn	blt
+B7nn	bge
+B8nn	bv
+B9nn	bnv
+BAnn	bmi
+BBnn	bpl
+BCnn	bz	(also beq)
+BDnn	bnz	(also bne)
+BEnn	bc	(also blo - unsigned below)
+BFnn	bnc	(also bae - unsigned above or equal)
 
 Cnnn	jal	pc+sext(nnn) (implicit VE as link register)
 Dnnn	jmp	pc+sext(nnn)

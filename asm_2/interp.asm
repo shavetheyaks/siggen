@@ -460,22 +460,22 @@ imm4_dispatch_jumptable:
 	rjmp	exec_aout
 
 branch_dispatch_jumptable:
+	rjmp	exec_jtab
+	rjmp	exec_jtab
+	rjmp	exec_jtab
+	rjmp	exec_jtab
+	rjmp	exec_jtab
+	rjmp	exec_jtab
+	rjmp	exec_blt
+	rjmp	exec_bge
+	rjmp	exec_bv
+	rjmp	exec_bnv
+	rjmp	exec_bmi
+	rjmp	exec_bpl
 	rjmp	exec_bz
 	rjmp	exec_bnz
-	rjmp	exec_bgt
-	rjmp	exec_blt
-	rjmp	exec_blte
-	rjmp	exec_bgte
-	rjmp	exec_bc
-	rjmp	exec_bnc
-	rjmp	exec_nop
-	rjmp	exec_nop
-	rjmp	exec_nop
-	rjmp	exec_nop
-	rjmp	exec_nop
-	rjmp	exec_nop
-	rjmp	exec_nop
-	rjmp	exec_nop
+	rjmp	exec_c
+	rjmp	exec_nc
 
 
 dispatch_alu:
@@ -830,14 +830,127 @@ _ror_done:
 	rjmp	_dispatch_done
 
 
-	; TODO: I/O instructions
 exec_spi:
+	movw	ZL, r6
+_spi_byte_loop:
+	dec	r10
+	brcs	_spi_done
+	ld	r25, Z
+	out	SPDR, r25
+_spi_wait_loop:
+	in	r25, SPSR
+	sbrs	r25, SPIF
+	rjmp	_spi_wait_loop
+	in	r25, SPDR
+	st	Z+, r25
+	rjmp	_spi_byte_loop
+_spi_done:
+	rjmp	_dispatch_done
+
+
 exec_mft:
 exec_mtt:
+	; TODO: countdown timer
+	rjmp	_dispatch_done
+
+
 exec_din:
+	; Read port values
+	in	r24, PINB
+	in	r25, PINC
+
+	; Shift desired value into LSB
+_din_loop:
+	dec	r10
+	brcs	_din_loop_done
+
+	clc
+	ror	r25
+	ror	r24
+
+	rjmp	_din_loop
+_din_loop_done:
+
+	; Extract port LSB and put into result LSB
+	andi	r24, 0x01
+	ldi	r25, 0xfe
+	and	r6, r25
+	or	r6, r24
+
+	rjmp	_dispatch_done
+
+
 exec_dout:
+	; Extract LSB from first operand
+	ldi	r23, 0x01
+	and	r6, r23
+	clr	r7
+
+	; Mask of all bits except LSB
+	ldi	r24, 0xfe
+	ldi	r25, 0xff
+
+	; Rotate LSB and mask into position specified by second operand
+_dout_loop:
+	dec	r10
+	brcs	_dout_loop_done
+
+	sec
+	rol	r24
+	rol	r25
+
+	clc
+	rol	r6
+	rol	r7
+
+	rjmp	_dout_loop
+_dout_loop_done:
+
+	; Read-modify-write
+	in	r22, PORTB
+	in	r23, PORTC
+	and	r22, r24
+	and	r23, r25
+	or	r22, r6
+	or	r23, r7
+	out	PORTB, r22
+	out	PORTC, r23
+
+	rjmp	_dispatch_done
+
+
 exec_ain:
+	; Set the ADC source
+	lds	r25, ADMUX
+	andi	r25, 0xf0
+	mov	r24, r10
+	andi	r24, 0x0f
+	or	r25, r24
+	sts	ADMUX, r25
+
+	; Trigger a single conversion
+	lds	r25, ADCSRA
+	ori	r25, (1 << ADSC)
+	sts	ADCSRA, r25
+
+	; Wait for conversion to complete
+_ain_wait:
+	lds	r25, ADCSRA
+	sbrs	r25, ADIF
+	rjmp	_ain_wait
+	sts	ADCSRA, r25
+
+	; Read value from ADC
+	lds	r6, ADCL
+	lds	r7, ADCH
+	clr	r8
+	clr	r9
+
+	rjmp	_dispatch_done
+
+
 exec_aout:
+	; TODO: PWM output
 	rjmp	_dispatch_done
 
 
@@ -950,7 +1063,9 @@ exec_stw:
 
 
 exec_ext:
-	; Return address into temporaries
+	; Can't use regular call/ret instructions, they take more than 3 cycles
+
+	; Put the return address into temporaries
 	ldi	r24, LOW(_ext_done)
 	ldi	r25, HIGH(_ext_done)
 
@@ -961,15 +1076,63 @@ _ext_done:
 	rjmp	_dispatch_done
 
 
-	; TODO: conditional branches
-exec_bz:
-exec_bnz:
-exec_bgt:
+exec_jtab:
+	add	r10, r6    ; Add V[X] to PC+sext(nn)
+	adc	r11, r7
+	movw	r2, r10
+	rjmp	_dispatch_done
+
+
 exec_blt:
-exec_blte:
-exec_bgte:
-exec_bc:
-exec_bnc:
+	sbrc	r14, 4
+	movw	r2, r10    ; Branch if S bit is set
+	rjmp	_dispatch_done
+exec_bge:
+	sbrs	r14, 4
+	movw	r2, r10    ; Branch if S bit is clear
+	rjmp	_dispatch_done
+
+
+exec_bv:
+	sbrc	r14, 3
+	movw	r2, r10    ; Branch if V bit is set
+	rjmp	_dispatch_done
+exec_bnv:
+	sbrs	r14, 3
+	movw	r2, r10    ; Branch if V bit is clear
+	rjmp	_dispatch_done
+
+
+exec_bmi:
+	sbrc	r14, 2
+	movw	r2, r10    ; Branch if N bit is set
+	rjmp	_dispatch_done
+exec_bpl:
+	sbrs	r14, 2
+	movw	r2, r10    ; Branch if N bit is clear
+	rjmp	_dispatch_done
+
+
+exec_bz:
+	sbrc	r14, 1
+	movw	r2, r10    ; Branch if Z bit is set
+	rjmp	_dispatch_done
+exec_bnz:
+	sbrs	r14, 1
+	movw	r2, r10    ; Branch if Z bit is clear
+	rjmp	_dispatch_done
+
+
+exec_c:
+	sbrc	r14, 0
+	movw	r2, r10    ; Branch if C bit is set
+	rjmp	_dispatch_done
+exec_nc:
+	sbrs	r14, 0
+	movw	r2, r10    ; Branch if C bit is clear
+	rjmp	_dispatch_done
+
+
 exec_jmp:
 	movw	r2, r10
 	rjmp	_dispatch_done
