@@ -1,5 +1,7 @@
 .include "./m328Pdef.inc"
 
+.include "./tbc.inc"
+
 
 ; ------------------------------------------------------------------------------
 ; Registers
@@ -104,14 +106,10 @@
 ; Bytecode
 
 entry:
-	.dw	0x1106
-	.dw	  0xbeef
-	.dw	  0xdead
-	.dw	0x1206
-	.dw	  0xcafe
-	.dw	  0xbeef
-	.dw	0x0120
-	.dw	0xdff8
+	T_MOVI	V1, 0xdeadbeef
+	T_MOVI	V2, 0xbeefcafe
+	T_ADD	V1, V2
+	T_JMP	entry
 
 
 ; ------------------------------------------------------------------------------
@@ -252,7 +250,7 @@ operand_jumptable:
 	rjmp	operand_VY_N
 	rjmp	operand_VY_N
 	rjmp	operand_VY_N
-	rjmp	operand_none
+	rjmp	operand_VY_N
 	rjmp	operand_PC_ssNN
 	rjmp	operand_PC_sNNN
 	rjmp	operand_PC_sNNN
