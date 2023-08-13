@@ -42,14 +42,12 @@
 ; T_MOVS  vx, imm4   Copy value         T_ROL    vx, imm4    Rotate left
 ; T_SHL   vx, imm4   Shift left         T_ROR    vx, imm4    Rotate right
 ;
-;
 ; T_LDB   vx, vy, n  Load 8  [VY+n]     T_STB    vx, vy, n   Store 8  [VY+n]
 ; T_LDH   vx, vy, n  Load 16 [VY+n]     T_STH    vx, vy, n   Store 16 [VY+n]
 ; T_LDW   vx, vy, n  Load 32 [VY+n]     T_STW    vx, vy, n   Store 32 [VY+n]
 ; T_LPB   vx, vy, n  Load ROM 8  [VY+n]
 ; T_LPH   vx, vy, n  Load ROM 16 [VY+n]
 ; T_LPW   vx, vy, n  Load ROM 32 [VY+n]
-;
 ;
 ; T_BZ    label      Branch if zero
 ; T_BNZ   label      Branch if not zero
@@ -65,7 +63,6 @@
 ; T_BNC   label      Branch if no carry
 ; T_BV    label      Branch if overflow
 ; T_BNV   label      Branch if no overflow
-;
 ;
 ; T_JMP   label      Jump to label
 ; T_JTAB  vx, label  Jump to label+VX       (V0-V5 only)
