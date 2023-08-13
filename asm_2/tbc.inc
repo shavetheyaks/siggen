@@ -72,6 +72,13 @@
 ; T_EXT   label      Jump to label and execute as AVR assembly
 ;                    (return address in r24:r25)
 ;
+; T_SPI   vx, y      SPI transfer y bytes at [VX]
+; T_MFT   vx, y      Move value from countdown timer y
+; T_MTT   vx, y      Move value to countdown timer y
+; T_DIN   vx, y      Digital input from pin y, only modifies LSB of VX
+; T_DOUT  vx, y      Digital output to pin y, only reads LSB of VX
+; T_AIN   vx, y      Analog input from channel y
+; T_AOUT  vx, y      Analog output to PWM channel y
 ; ------------------------------------------------------------------------------
 
 
