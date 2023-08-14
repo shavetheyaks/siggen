@@ -125,6 +125,27 @@ reset:
 	ldi	r25, LOW(RAMEND)
 	out	SPL, r25
 
+	; ----- Set up debounce timer
+
+	; Hold prescaler in reset so timer remains halted until we need it
+	ldi	r25, (1 << TSM) | \
+		     (1 << PSRSYNC)
+	out	GTCCR, r25
+
+	; Timer 0: CTC mode (reset after compare match)
+	;          Clock source CLK_io / 64
+	ldi	r25, (1 << WGM01) | \
+		     (0 << WGM00)
+	out	TCCR0A, r25
+	ldi	r25, (0 << WGM02) | \
+		     (3 << CS00)
+	out	TCCR0B, r25
+	sbi	TIFR0, OCF0A  ; Make sure the timer flag is clear
+	ldi	r25, 250      ; Count up to 250 (at 16MHz/64 = 250kHz -> 1ms)
+	out	OCR0A, r25
+	ldi	r25, 0        ; Reset the timer counter
+	out	TCNT0, r25
+
 	; ----- Reset interpreter state
 
 	; TODO
@@ -136,8 +157,30 @@ reset:
 	; --------------------------------------------------------------
 	; Main loop
 loop:
-	; Check for pin change interrupt flag and debounce switches
-	; TODO
+	; Debounce switches
+	in	r25, PCIFR
+	tst	r25
+	breq	_debounce_done
+
+_debounce_reset:
+	; Clear pin change flags
+	out	PCIFR, r25
+
+	; Reset the timer
+	ldi	r25, (1 << TSM) | (1 << PSRSYNC)
+	out	GTCCR, r25
+	sbi	TIFR0, OCF0A
+	clr	r25
+	out	TCNT0, r25
+	out	GTCCR, r25
+
+_debounce_busyloop:
+	in	r25, PCIFR
+	tst	r25
+	brne	_debounce_reset
+	sbis	TIFR0, OCF0A
+	rjmp	_debounce_busyloop
+_debounce_done:
 
 	; Fetch instruction
 	movw	ZL, r2     ; Put bytecode PC into Z
