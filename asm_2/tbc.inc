@@ -124,6 +124,25 @@
 ; ------------------------------------------------------------------------------
 ; Instruction building macros
 
+; There are a lot of commented-out sanity checks, especially in relative jumps.
+; I'm very sad about this, but conditional assembly (.if) will break if used on
+; forward references because in the general case, the contents of the .if block
+; can change the value of the label, which can in turn change the conditon.
+;
+; Even though this won't happen the way they're being used here, the assembler
+; still disallows it, which breaks my heart.  The only thing to do is to just
+; let you shoot yourself in the foot if your branch target is out of range.
+;
+; Using #if won't work here because those are evaluated before any assembling is
+; done, so the labels won't be defined at all and won't be populated on future
+; assembler passes.
+;
+; EXP2(N<0) will emit a warning, and LOG2(N<0) will cause the assembler to hang,
+; so maybe an expression could be generated with those that will alert the user
+; if a jump target is out of bounds.
+;
+; (See AVR Assembler manual, section 1 - "AVR Assembler Known Issues")
+
 
 ; ----- Group 0x0, register-register
 
@@ -584,79 +603,79 @@
 	.if @0 < 0 || @0 > 0x5
 	.error "Tortoise Bytecode: invalid variable register (V0-V5 for JTAB)"
 	.endif
-	.if (@1-(PC+1)) < -0x80 || (@1-(PC+1)) >= 0x80
-	.error "Tortoise Bytecode: branch target out of range"
-	.endif
+	;.if (@1-(PC+1)) < -0x80 || (@1-(PC+1)) >= 0x80
+	;.error "Tortoise Bytecode: branch target out of range"
+	;.endif
 	.dw	(0xb << 12) | (@0 << 8) | (@1-(PC+1))
 .endmacro
 
 .macro T_BLT
-	.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
-	.error "Tortoise Bytecode: branch target out of range"
-	.endif
+	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.error "Tortoise Bytecode: branch target out of range"
+	;.endif
 	.dw	(0xb6 << 8) | (@0-(PC+1))
 .endmacro
 
 .macro T_BGE
-	.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
-	.error "Tortoise Bytecode: branch target out of range"
-	.endif
+	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.error "Tortoise Bytecode: branch target out of range"
+	;.endif
 	.dw	(0xb7 << 8) | (@0-(PC+1))
 .endmacro
 
 .macro T_BV
-	.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
-	.error "Tortoise Bytecode: branch target out of range"
-	.endif
+	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.error "Tortoise Bytecode: branch target out of range"
+	;.endif
 	.dw	(0xb8 << 8) | (@0-(PC+1))
 .endmacro
 
 .macro T_BNV
-	.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
-	.error "Tortoise Bytecode: branch target out of range"
-	.endif
+	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.error "Tortoise Bytecode: branch target out of range"
+	;.endif
 	.dw	(0xb9 << 8) | (@0-(PC+1))
 .endmacro
 
 .macro T_BMI
-	.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
-	.error "Tortoise Bytecode: branch target out of range"
-	.endif
+	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.error "Tortoise Bytecode: branch target out of range"
+	;.endif
 	.dw	(0xba << 8) | (@0-(PC+1))
 .endmacro
 
 .macro T_BPL
-	.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
-	.error "Tortoise Bytecode: branch target out of range"
-	.endif
+	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.error "Tortoise Bytecode: branch target out of range"
+	;.endif
 	.dw	(0xbb << 8) | (@0-(PC+1))
 .endmacro
 
 .macro T_BZ
-	.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
-	.error "Tortoise Bytecode: branch target out of range"
-	.endif
+	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.error "Tortoise Bytecode: branch target out of range"
+	;.endif
 	.dw	(0xbc << 8) | (@0-(PC+1))
 .endmacro
 
 .macro T_BNZ
-	.if (@0-(PC+1)) < -0x80 || (@0(PC+1)) >= 0x80
-	.error "Tortoise Bytecode: branch target out of range"
-	.endif
+	;.if (@0-(PC+1)) < -0x80 || (@0(PC+1)) >= 0x80
+	;.error "Tortoise Bytecode: branch target out of range"
+	;.endif
 	.dw	(0xbd << 8) | (@0-(PC+1))
 .endmacro
 
 .macro T_BC
-	.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
-	.error "Tortoise Bytecode: branch target out of range"
-	.endif
+	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.error "Tortoise Bytecode: branch target out of range"
+	;.endif
 	.dw	(0xbe << 8) | (@0-(PC+1))
 .endmacro
 
 .macro T_BNC
-	.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
-	.error "Tortoise Bytecode: branch target out of range"
-	.endif
+	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.error "Tortoise Bytecode: branch target out of range"
+	;.endif
 	.dw	(0xbf << 8) | (@0-(PC+1))
 .endmacro
 
@@ -680,23 +699,23 @@
 ; ----- Miscellaneous
 
 .macro T_JAL
-	.if (@0-(PC+1)) < -0x800 || (@0-(PC+1)) >= 0x800
-	.error "Tortoise Bytecode: jump target out of range"
-	.endif
+	;.if (@0-(PC+1)) < -0x800 || (@0-(PC+1)) >= 0x800
+	;.error "Tortoise Bytecode: jump target out of range"
+	;.endif
 	.dw	(0xc << 12) | ((HIGH(@0-(PC+1))&0x0f) << 8) | LOW(@0-(PC+1))
 .endmacro
 
 .macro T_JMP
-	.if (@0-(PC+1)) < -0x800 || (@0-(PC+1)) >= 0x800
-	.error "Tortoise Bytecode: jump target out of range"
-	.endif
+	;.if (@0-(PC+1)) < -0x800 || (@0-(PC+1)) >= 0x800
+	;.error "Tortoise Bytecode: jump target out of range"
+	;.endif
 	.dw	(0xd << 12) | ((HIGH(@0-(PC+1))&0x0f) << 8) | LOW(@0-(PC+1))
 .endmacro
 
 .macro T_EXT
-	.if @0 < 0 || @0 > 0xfff
-	.error "Tortoise Bytecode: EXT target out of range"
-	.endif
+	;.if @0 < 0 || @0 > 0xfff
+	;.error "Tortoise Bytecode: EXT target out of range"
+	;.endif
 	.dw	(0xe << 12) | (HIGH(@0)&0x0f) | LOW(@0)
 .endmacro
 
