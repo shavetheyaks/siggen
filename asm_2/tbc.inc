@@ -122,6 +122,21 @@
 
 
 ; ------------------------------------------------------------------------------
+; The assembler packaged with avr_sim has a bug where PC evaluates to PC-1.
+; The avra assembler gets it correct, but I can't get the supposedly predefined
+; __AVRASM_VERSION__ macro to work, so for now just manually enter the error in
+; PC in this symbol.
+
+; Use with AVRA assembler
+; "AVRA: advanced AVR macro assembler Version 1.3.0 Build 1 (8 May 2010)"
+.equ	PCERROR = 0
+
+; Use with assembler packaged with avr_sim
+; "gavrasm Gerd's AVR assembler version 5.4 (C)2022 by DG4FAC"
+;.equ	PCERROR = -1
+
+
+; ------------------------------------------------------------------------------
 ; Instruction building macros
 
 ; There are a lot of commented-out sanity checks, especially in relative jumps.
@@ -603,80 +618,80 @@
 	.if @0 < 0 || @0 > 0x5
 	.error "Tortoise Bytecode: invalid variable register (V0-V5 for JTAB)"
 	.endif
-	;.if (@1-(PC+1)) < -0x80 || (@1-(PC+1)) >= 0x80
+	;.if (@1-(PC+1-PCERROR)) < -0x80 || (@1-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xb << 12) | (@0 << 8) | (@1-(PC+1))
+	.dw	(0xb << 12) | (@0 << 8) | (@1-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BLT
-	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xb6 << 8) | (@0-(PC+1))
+	.dw	(0xb6 << 8) | (@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BGE
-	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xb7 << 8) | (@0-(PC+1))
+	.dw	(0xb7 << 8) | (@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BV
-	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xb8 << 8) | (@0-(PC+1))
+	.dw	(0xb8 << 8) | (@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BNV
-	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xb9 << 8) | (@0-(PC+1))
+	.dw	(0xb9 << 8) | (@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BMI
-	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xba << 8) | (@0-(PC+1))
+	.dw	(0xba << 8) | (@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BPL
-	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xbb << 8) | (@0-(PC+1))
+	.dw	(0xbb << 8) | (@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BZ
-	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xbc << 8) | (@0-(PC+1))
+	.dw	(0xbc << 8) | (@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BNZ
-	;.if (@0-(PC+1)) < -0x80 || (@0(PC+1)) >= 0x80
+	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xbd << 8) | (@0-(PC+1))
+	.dw	(0xbd << 8) | (@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BC
-	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xbe << 8) | (@0-(PC+1))
+	.dw	(0xbe << 8) | (@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BNC
-	;.if (@0-(PC+1)) < -0x80 || (@0-(PC+1)) >= 0x80
+	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xbf << 8) | (@0-(PC+1))
+	.dw	(0xbf << 8) | (@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BEQ
@@ -699,17 +714,17 @@
 ; ----- Miscellaneous
 
 .macro T_JAL
-	;.if (@0-(PC+1)) < -0x800 || (@0-(PC+1)) >= 0x800
+	;.if (@0-(PC+1-PCERROR)) < -0x800 || (@0-(PC+1-PCERROR)) >= 0x800
 	;.error "Tortoise Bytecode: jump target out of range"
 	;.endif
-	.dw	(0xc << 12) | ((HIGH(@0-(PC+1))&0x0f) << 8) | LOW(@0-(PC+1))
+	.dw	(0xc << 12) | ((HIGH(@0-(PC+1-PCERROR))&0x0f) << 8) | LOW(@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_JMP
-	;.if (@0-(PC+1)) < -0x800 || (@0-(PC+1)) >= 0x800
+	;.if (@0-(PC+1-PCERROR)) < -0x800 || (@0-(PC+1-PCERROR)) >= 0x800
 	;.error "Tortoise Bytecode: jump target out of range"
 	;.endif
-	.dw	(0xd << 12) | ((HIGH(@0-(PC+1))&0x0f) << 8) | LOW(@0-(PC+1))
+	.dw	(0xd << 12) | ((HIGH(@0-(PC+1-PCERROR))&0x0f) << 8) | LOW(@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_EXT
