@@ -105,15 +105,65 @@
 ; ------------------------------------------------------------------------------
 ; Bytecode
 
+.cseg
+
 entry:
-	T_MOVI	V1, 0xdeadbeef
-	T_MOVI	V2, 0xbeefcafe
-	T_ADD	V1, V2
-	T_JMP	entry
+	T_MOVI	V1, 0x11111111
+	T_MOV	V2, V1
+	T_ADD	V2, V1
+	T_OR	V3, V1
+	T_OR	V3, V2
+	T_MOV	V6, V3
+	T_ANDI	V6, 0x0000000f
+	T_MUL	V6, V2
+	T_MOV	V4, V2
+	T_SHL	V4, 4
+	T_SHRA	V4, 3
+	T_NOR	V4, V4
+	T_ADDS	V4, 1
+	T_SHL	V4, 3
+	T_SHRA	V4, 3
+	T_SHL	V4, 3
+	T_SHRL	V4, 3
+	T_MOVI	V4, -4
+	T_CMP	V3, V4
+	T_BLT	failure
+	T_MOVI	V0, 0xaaaaaaaa
+	T_CMP	V3, V4
+	T_BAE	failure
+	T_MOVI	V0, 0xbbbbbbbb
+	T_JAL	func
+	T_MOVI	SP, variable
+	T_STB	V0, SP, 0
+	T_LDB	V0, SP, 0
+	T_MOVI	V1, 0xdddddddd
+	T_STW	V1, SP, 4
+	T_LDH	V1, SP, 4
+	T_MOVI	VC, const
+	T_LPW	V2, VC, 0
+	T_JMP	halt
+func:
+	T_MOVI	V0, 0xcccccccc
+	T_JALR	V1, RA
+failure:
+	T_MOVI	V0, 0xeeeeeeee
+halt:
+	T_JMP	halt
+
+
+const:
+	.dw	0xcafe, 0xbeef
+
+.dseg
+
+variable:
+	.byte	16
 
 
 ; ------------------------------------------------------------------------------
 ; Reset entry point
+
+.cseg
 
 reset:
 	; ----- Disable interrupts and set stack pointer to top of SRAM
@@ -128,17 +178,14 @@ reset:
 	; ----- Set up debounce timer
 
 	; Hold prescaler in reset so timer remains halted until we need it
-	ldi	r25, (1 << TSM) | \
-		     (1 << PSRSYNC)
+	ldi	r25, (1 << TSM) | (1 << PSRSYNC)
 	out	GTCCR, r25
 
 	; Timer 0: CTC mode (reset after compare match)
 	;          Clock source CLK_io / 64
-	ldi	r25, (1 << WGM01) | \
-		     (0 << WGM00)
+	ldi	r25, (1 << WGM01) | (0 << WGM00)
 	out	TCCR0A, r25
-	ldi	r25, (0 << WGM02) | \
-		     (3 << CS00)
+	ldi	r25, (0 << WGM02) | (3 << CS00)
 	out	TCCR0B, r25
 	sbi	TIFR0, OCF0A  ; Make sure the timer flag is clear
 	ldi	r25, 250      ; Count up to 250 (at 16MHz/64 = 250kHz -> 1ms)
@@ -148,7 +195,21 @@ reset:
 
 	; ----- Reset interpreter state
 
-	; TODO
+	; Zero out registers
+	ldi	ZL, LOW(interp_regs)
+	ldi	ZH, HIGH(interp_regs)
+	clr	r25
+	ldi	r24, 16*4
+_zreg_loop:
+	dec	r24
+	brlt	_zreg_done
+	st	Z+, r25
+	rjmp	_zreg_loop
+_zreg_done:
+
+	; TODO: Set stack pointer
+
+	; Instruction pointer
 	ldi	r25, LOW(entry)
 	mov	r2, r25
 	ldi	r25, HIGH(entry)
@@ -261,6 +322,7 @@ _dispatch_done_writeback_flags:
 	or	r14, r24
 _no_z:
 
+_dispatch_done_writeback_fixedflags:
 	ldi	r24, 0x3c  ; Offset of the VF register (0xf * 4)
 	clr	r25        ; Add offset to base address of registers
 	ldi	ZL, LOW(interp_regs)
@@ -327,7 +389,7 @@ operand_imm32:
 	rol	ZH
 	lpm	r10, Z+    ; Load four bytes and increment
 	lpm	r11, Z+
-	lpm	r14, Z+
+	lpm	r12, Z+
 	lpm	r13, Z+
 	lsr	ZH         ; /2 to get a word address from a byte address
 	ror	ZL
@@ -705,7 +767,7 @@ exec_mul:
 
 exec_div:
 	; TODO
-	rjmp	_dispatch_done
+	rjmp	_dispatch_done_writeback_flags
 
 
 exec_cmp:
@@ -716,22 +778,24 @@ exec_cmp:
 	sbc	r24, r12
 	sbc	r25, r13
 	in	r21, SREG
-	andi	r21, 0xfd
+	andi	r21, 0x1d
 
 	or	r25, r24
 	or	r25, r23
 	or	r25, r22
-	breq	_cmp_z
+	brne	_cmp_nz
 	ori	r21, 0x02
-_cmp_z:
-	; TODO: Flags
-	rjmp	_dispatch_done_writeback_flags
+_cmp_nz:
+	ldi	r25, 0xe0
+	and	r14, r25
+	or	r14, r21
+	rjmp	_dispatch_done_writeback_fixedflags
 
 
 exec_test:
 	clr	r0
 	mov	r25, r14
-	andi	r25, 0xfd
+	andi	r25, 0xf9
 
 	mov	r24, r6
 	and	r24, r10
@@ -747,13 +811,15 @@ exec_test:
 
 	mov	r24, r9
 	and	r24, r13
+	sbrc	r24, 7
+	ori	r25, 0x04
 	or	r0, r24
 
 	breq	_test_z
 	ori	r25, 0x02
 _test_z:
 	mov	r14, r25
-	rjmp	_dispatch_done_writeback_flags
+	rjmp	_dispatch_done_writeback_fixedflags
 
 
 exec_jal_with_ve:
@@ -779,7 +845,7 @@ exec_shl:
 
 _shl_loop:
 	dec	r10        ; Decrement counter
-	brcs	_shl_done
+	brlt	_shl_done
 
 	lsl	r6         ; Shift left by a bit
 	rol	r7
@@ -790,7 +856,7 @@ _shl_loop:
 	rjmp	_shl_loop
 _shl_done:
 	; TODO: CV flags
-	rjmp	_dispatch_done
+	rjmp	_dispatch_done_writeback_flags
 
 
 exec_shrl:
@@ -799,7 +865,7 @@ exec_shrl:
 
 _shrl_loop:
 	dec	r10        ; Decrement counter
-	brcs	_shrl_done
+	brlt	_shrl_done
 
 	lsr	r9
 	ror	r8
@@ -810,7 +876,7 @@ _shrl_loop:
 	rjmp	_shrl_loop
 _shrl_done:
 	; TODO: CV flags
-	rjmp	_dispatch_done
+	rjmp	_dispatch_done_writeback_flags
 
 
 exec_shra:
@@ -819,7 +885,7 @@ exec_shra:
 
 _shra_loop:
 	dec	r10        ; Decrement counter
-	brcs	_shra_done
+	brlt	_shra_done
 
 	asr	r9
 	ror	r8
@@ -830,13 +896,13 @@ _shra_loop:
 	rjmp	_shra_loop
 _shra_done:
 	; TODO: CV flags
-	rjmp	_dispatch_done
+	rjmp	_dispatch_done_writeback_flags
 
 
 exec_rol:
 _rol_loop:
 	dec	r10        ; Decrement counter
-	brcs	_rol_done
+	brlt	_rol_done
 
 	clc                ; Pull highest bit into carry
 	sbrc	r9, 7
@@ -849,13 +915,13 @@ _rol_loop:
 	rjmp	_rol_done
 _rol_done:
 	; TODO: Flags?
-	rjmp	_dispatch_done
+	rjmp	_dispatch_done_writeback_flags
 
 
 exec_ror:
 _ror_loop:
 	dec	r10        ; Decrement counter
-	brcs	_ror_done
+	brlt	_ror_done
 
 	clc                ; Pull lowest bit into carry
 	sbrc	r6, 0
@@ -868,14 +934,14 @@ _ror_loop:
 	rjmp	_ror_done
 _ror_done:
 	; TODO: Flags?
-	rjmp	_dispatch_done
+	rjmp	_dispatch_done_writeback_flags
 
 
 exec_spi:
 	movw	ZL, r6
 _spi_byte_loop:
 	dec	r10
-	brcs	_spi_done
+	brlt	_spi_done
 	ld	r25, Z
 	out	SPDR, r25
 _spi_wait_loop:
@@ -890,6 +956,10 @@ _spi_done:
 
 
 exec_mft:
+	; TODO: countdown timer
+	rjmp	_dispatch_done_writeback_reg
+
+
 exec_mtt:
 	; TODO: countdown timer
 	rjmp	_dispatch_done
@@ -903,7 +973,7 @@ exec_din:
 	; Shift desired value into LSB
 _din_loop:
 	dec	r10
-	brcs	_din_loop_done
+	brlt	_din_loop_done
 
 	clc
 	ror	r25
@@ -918,7 +988,7 @@ _din_loop_done:
 	and	r6, r25
 	or	r6, r24
 
-	rjmp	_dispatch_done
+	rjmp	_dispatch_done_writeback_flags
 
 
 exec_dout:
@@ -934,7 +1004,7 @@ exec_dout:
 	; Rotate LSB and mask into position specified by second operand
 _dout_loop:
 	dec	r10
-	brcs	_dout_loop_done
+	brlt	_dout_loop_done
 
 	sec
 	rol	r24
@@ -987,7 +1057,7 @@ _ain_wait:
 	clr	r8
 	clr	r9
 
-	rjmp	_dispatch_done
+	rjmp	_dispatch_done_writeback_reg
 
 
 exec_aout:
@@ -1008,7 +1078,7 @@ exec_ldb:
 	mov	r8, r0
 	mov	r9, r0
 
-	rjmp	_dispatch_done
+	rjmp	_dispatch_done_writeback_reg
 
 
 exec_ldh:
@@ -1024,7 +1094,7 @@ exec_ldh:
 	mov	r8, r0
 	mov	r9, r0
 
-	rjmp	_dispatch_done
+	rjmp	_dispatch_done_writeback_reg
 
 
 exec_ldw:
@@ -1035,7 +1105,7 @@ exec_ldw:
 	ld	r8, Z+
 	ld	r9, Z+
 
-	rjmp	_dispatch_done
+	rjmp	_dispatch_done_writeback_reg
 
 
 exec_lpb:
@@ -1051,7 +1121,7 @@ exec_lpb:
 	mov	r8, r0
 	mov	r9, r0
 
-	rjmp	_dispatch_done
+	rjmp	_dispatch_done_writeback_reg
 
 
 exec_lph:
@@ -1067,7 +1137,7 @@ exec_lph:
 	mov	r8, r0
 	mov	r9, r0
 
-	rjmp	_dispatch_done
+	rjmp	_dispatch_done_writeback_reg
 
 
 exec_lpw:
@@ -1078,7 +1148,7 @@ exec_lpw:
 	lpm	r8, Z+
 	lpm	r9, Z+
 
-	rjmp	_dispatch_done
+	rjmp	_dispatch_done_writeback_reg
 
 
 exec_stb:
