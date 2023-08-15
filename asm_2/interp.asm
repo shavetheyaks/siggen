@@ -126,9 +126,17 @@ entry:
 	T_SHL	V4, 3
 	T_SHRL	V4, 3
 	T_MOVI	V4, -4
+	T_CMP	V4, V3
+	T_BLT	good1
+	T_JMP	failure
+good1:
 	T_CMP	V3, V4
 	T_BLT	failure
 	T_MOVI	V0, 0xaaaaaaaa
+	T_CMP	V4, V3
+	T_BAE	good2
+	T_JMP	failure
+good2:
 	T_CMP	V3, V4
 	T_BAE	failure
 	T_MOVI	V0, 0xbbbbbbbb
@@ -139,8 +147,13 @@ entry:
 	T_MOVI	V1, 0xdddddddd
 	T_STW	V1, SP, 4
 	T_LDH	V1, SP, 4
-	T_MOVI	VC, const
+	T_MOVI	VC, (const<<1)
 	T_LPW	V2, VC, 0
+	T_EXT	ext_init
+	T_MOVS	V0, 1
+	T_DOUT	V0, 2
+	T_MOVS	V0, 0
+	T_DOUT	V0, 2
 	T_JMP	halt
 func:
 	T_MOVI	V0, 0xcccccccc
@@ -149,6 +162,13 @@ failure:
 	T_MOVI	V0, 0xeeeeeeee
 halt:
 	T_JMP	halt
+
+ext_init:
+	movw	ZL, r24
+	ldi	r25, 0x7f
+	out	DDRB, r25
+	out	DDRC, r25
+	ijmp
 
 
 const:
@@ -318,7 +338,7 @@ _dispatch_done_writeback_flags:
 	or	r25, r7
 	or	r25, r8
 	or	r25, r9
-	breq	_no_z
+	brne	_no_z
 	or	r14, r24
 _no_z:
 
