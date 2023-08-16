@@ -122,21 +122,6 @@
 
 
 ; ------------------------------------------------------------------------------
-; The assembler packaged with avr_sim has a bug where PC evaluates to PC-1.
-; The avra assembler gets it correct, but I can't get the supposedly predefined
-; __AVRASM_VERSION__ macro to work, so for now just manually enter the error in
-; PC in this symbol.
-
-; Use with AVRA assembler
-; "AVRA: advanced AVR macro assembler Version 1.3.0 Build 1 (8 May 2010)"
-.equ	PCERROR = 0
-
-; Use with assembler packaged with avr_sim
-; "gavrasm Gerd's AVR assembler version 5.4 (C)2022 by DG4FAC"
-;.equ	PCERROR = -1
-
-
-; ------------------------------------------------------------------------------
 ; Instruction building macros
 
 ; There are a lot of commented-out sanity checks, especially in relative jumps.
