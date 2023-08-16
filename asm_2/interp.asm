@@ -105,78 +105,108 @@
 ; ------------------------------------------------------------------------------
 ; Bytecode
 
+
+; Pins for Nokia 5110 LCD
+.equ	P_LED  = 0x4
+.equ	P_SCLK = 0x5
+.equ	P_MOSI = 0x3
+.equ	P_DC   = 0x0
+.equ	P_RST  = 0x1
+.equ	P_SCE  = 0x2
+
+
 .cseg
 
 entry:
-	T_MOVI	V1, 0x11111111
-	T_MOV	V2, V1
-	T_ADD	V2, V1
-	T_OR	V3, V1
-	T_OR	V3, V2
-	T_MOV	V6, V3
-	T_ANDI	V6, 0x0000000f
-	T_MUL	V6, V2
-	T_MOV	V4, V2
-	T_SHL	V4, 4
-	T_SHRA	V4, 3
-	T_NOR	V4, V4
-	T_ADDS	V4, 1
-	T_SHL	V4, 3
-	T_SHRA	V4, 3
-	T_SHL	V4, 3
-	T_SHRL	V4, 3
-	T_MOVI	V4, -4
-	T_CMP	V4, V3
-	T_BLT	good1
-	T_JMP	failure
-good1:
-	T_CMP	V3, V4
-	T_BLT	failure
-	T_MOVI	V0, 0xaaaaaaaa
-	T_CMP	V4, V3
-	T_BAE	good2
-	T_JMP	failure
-good2:
-	T_CMP	V3, V4
-	T_BAE	failure
-	T_MOVI	V0, 0xbbbbbbbb
-	T_JAL	func
-	T_MOVI	SP, variable
-	T_STB	V0, SP, 0
-	T_LDB	V0, SP, 0
-	T_MOVI	V1, 0xdddddddd
-	T_STW	V1, SP, 4
-	T_LDH	V1, SP, 4
-	T_MOVI	VC, (const<<1)
-	T_LPW	V2, VC, 0
+	; Set up ports and SPI
 	T_EXT	ext_init
-	T_MOVS	V0, 1
-	T_DOUT	V0, 2
-	T_MOVS	V0, 0
-	T_DOUT	V0, 2
-	T_JMP	halt
-func:
-	T_MOVI	V0, 0xcccccccc
-	T_JALR	V1, RA
-failure:
-	T_MOVI	V0, 0xeeeeeeee
+
+	; Reset the LCD
+	T_JAL	lcd_reset
+
+	; Do something with the LCD
+	T_MOVI	A0, 0x21
+	T_JAL	lcd_cmd
+	T_MOVI	A0, 0xb8
+	T_JAL	lcd_cmd
+	T_MOVI	A0, 0x04
+	T_JAL	lcd_cmd
+	T_MOVI	A0, 0x14
+	T_JAL	lcd_cmd
+	T_MOVI	A0, 0x20
+	T_JAL	lcd_cmd
+	T_MOVI	A0, 0x09
+	T_JAL	lcd_cmd
+
+	; Idle while blinking the LCD backlight
+	T_MOVS	S0, 0
+	T_MOVS	S1, 1
+led_loop:
+	T_DOUT	S1, P_LED
+	T_MOVI	A0, 20000
+	T_JAL	delay
+
+	T_DOUT	S0, P_LED
+	T_MOVI	A0, 20000
+	T_JAL	delay
+
+	T_JMP	led_loop
+
+
 halt:
 	T_JMP	halt
 
+delay:
+	T_SUBS	A0, 1
+	T_BNZ	delay
+	T_JALR	TM, RA
+
+lcd_reset:
+	T_MOVS	TM, 0
+	T_DOUT	TM, P_RST
+	T_MOVS	TM, 1
+	T_DOUT	TM, P_RST
+	T_JALR	TM, RA
+
+lcd_cmd:
+	T_MOVI	TM, spi_buf
+	T_STB	A0, TM, 0
+
+	T_MOVS	A0, 0
+	T_DOUT	A0, P_DC
+	T_DOUT	A0, P_SCE
+	T_SPI	TM, 1
+	T_MOVS	A0, 1
+	T_DOUT	A0, P_SCE
+
+	T_JALR	TM, RA
+
 ext_init:
 	movw	ZL, r24
-	ldi	r25, 0x7f
+
+	; Ports B and C all outputs
+	ldi	r25, 0xff
 	out	DDRB, r25
 	out	DDRC, r25
+
+	; Set up SPI
+	ldi	r25, (0 << SPIE) | \
+		     (1 << SPE)  | \
+		     (0 << DORD) | \
+		     (1 << MSTR) | \
+		     (0 << CPOL) | \
+		     (0 << CPHA) | \
+		     (0b01 << SPR0)
+	out	SPCR, r25
+	ldi	r25, (0 << SPI2X)
+	out	SPSR, r25
+
 	ijmp
 
 
-const:
-	.dw	0xcafe, 0xbeef
-
 .dseg
 
-variable:
+spi_buf:
 	.byte	16
 
 
