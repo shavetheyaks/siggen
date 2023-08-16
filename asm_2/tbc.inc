@@ -621,77 +621,77 @@
 	;.if (@1-(PC+1-PCERROR)) < -0x80 || (@1-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xb << 12) | (@0 << 8) | (@1-(PC+1-PCERROR))
+	.dw	(0xb << 12) | (@0 << 8) | LOW(@1-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BLT
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xb6 << 8) | (@0-(PC+1-PCERROR))
+	.dw	(0xb6 << 8) | LOW(@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BGE
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xb7 << 8) | (@0-(PC+1-PCERROR))
+	.dw	(0xb7 << 8) | LOW(@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BV
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xb8 << 8) | (@0-(PC+1-PCERROR))
+	.dw	(0xb8 << 8) | LOW(@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BNV
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xb9 << 8) | (@0-(PC+1-PCERROR))
+	.dw	(0xb9 << 8) | LOW(@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BMI
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xba << 8) | (@0-(PC+1-PCERROR))
+	.dw	(0xba << 8) | LOW(@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BPL
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xbb << 8) | (@0-(PC+1-PCERROR))
+	.dw	(0xbb << 8) | LOW(@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BZ
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xbc << 8) | (@0-(PC+1-PCERROR))
+	.dw	(0xbc << 8) | LOW(@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BNZ
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xbd << 8) | (@0-(PC+1-PCERROR))
+	.dw	(0xbd << 8) | LOW(@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BC
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xbe << 8) | (@0-(PC+1-PCERROR))
+	.dw	(0xbe << 8) | LOW(@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BNC
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
-	.dw	(0xbf << 8) | (@0-(PC+1-PCERROR))
+	.dw	(0xbf << 8) | LOW(@0-(PC+1-PCERROR))
 .endmacro
 
 .macro T_BEQ
