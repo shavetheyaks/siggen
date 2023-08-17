@@ -866,7 +866,7 @@ _rol_loop:
 	rol	r8
 	rol	r9
 
-	rjmp	_rol_done
+	rjmp	_rol_loop
 _rol_done:
 	; TODO: Flags?
 	rjmp	_dispatch_done_writeback_flags
@@ -885,7 +885,7 @@ _ror_loop:
 	ror	r7
 	ror	r6
 
-	rjmp	_ror_done
+	rjmp	_ror_loop
 _ror_done:
 	; TODO: Flags?
 	rjmp	_dispatch_done_writeback_flags
