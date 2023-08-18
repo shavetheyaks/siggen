@@ -600,6 +600,7 @@
 ; ----- Group B, branches
 
 .macro T_JTAB
+	.message "Branch at ", PC, " ", (@0-(PC+1-PCERROR) < -0x80) || (@0-(PC+1-PCERROR) >= 0x80)
 	.if @0 < 0 || @0 > 0x5
 	.error "Tortoise Bytecode: invalid variable register (V0-V5 for JTAB)"
 	.endif
@@ -610,6 +611,7 @@
 .endmacro
 
 .macro T_BLT
+	.message "Branch at ", PC, " ", (@0-(PC+1-PCERROR) < -0x80) || (@0-(PC+1-PCERROR) >= 0x80)
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
@@ -617,6 +619,7 @@
 .endmacro
 
 .macro T_BGE
+	.message "Branch at ", PC, " ", (@0-(PC+1-PCERROR) < -0x80) || (@0-(PC+1-PCERROR) >= 0x80)
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
@@ -624,6 +627,7 @@
 .endmacro
 
 .macro T_BV
+	.message "Branch at ", PC, " ", (@0-(PC+1-PCERROR) < -0x80) || (@0-(PC+1-PCERROR) >= 0x80)
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
@@ -631,6 +635,7 @@
 .endmacro
 
 .macro T_BNV
+	.message "Branch at ", PC, " ", (@0-(PC+1-PCERROR) < -0x80) || (@0-(PC+1-PCERROR) >= 0x80)
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
@@ -638,6 +643,7 @@
 .endmacro
 
 .macro T_BMI
+	.message "Branch at ", PC, " ", (@0-(PC+1-PCERROR) < -0x80) || (@0-(PC+1-PCERROR) >= 0x80)
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
@@ -645,6 +651,7 @@
 .endmacro
 
 .macro T_BPL
+	.message "Branch at ", PC, " ", (@0-(PC+1-PCERROR) < -0x80) || (@0-(PC+1-PCERROR) >= 0x80)
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
@@ -652,6 +659,7 @@
 .endmacro
 
 .macro T_BZ
+	.message "Branch at ", PC, " ", (@0-(PC+1-PCERROR) < -0x80) || (@0-(PC+1-PCERROR) >= 0x80)
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
@@ -659,6 +667,7 @@
 .endmacro
 
 .macro T_BNZ
+	.message "Branch at ", PC, " ", (@0-(PC+1-PCERROR) < -0x80) || (@0-(PC+1-PCERROR) >= 0x80)
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
@@ -666,6 +675,7 @@
 .endmacro
 
 .macro T_BC
+	.message "Branch at ", PC, " ", (@0-(PC+1-PCERROR) < -0x80) || (@0-(PC+1-PCERROR) >= 0x80)
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
@@ -673,6 +683,7 @@
 .endmacro
 
 .macro T_BNC
+	.message "Branch at ", PC, " ", (@0-(PC+1-PCERROR) < -0x80) || (@0-(PC+1-PCERROR) >= 0x80)
 	;.if (@0-(PC+1-PCERROR)) < -0x80 || (@0-(PC+1-PCERROR)) >= 0x80
 	;.error "Tortoise Bytecode: branch target out of range"
 	;.endif
@@ -699,6 +710,7 @@
 ; ----- Miscellaneous
 
 .macro T_JAL
+	.message "Jump at ", PC, "   ", (@0-(PC+1-PCERROR) < -0x800) || (@0-(PC+1-PCERROR) >= 0x800)
 	;.if (@0-(PC+1-PCERROR)) < -0x800 || (@0-(PC+1-PCERROR)) >= 0x800
 	;.error "Tortoise Bytecode: jump target out of range"
 	;.endif
@@ -706,6 +718,7 @@
 .endmacro
 
 .macro T_JMP
+	.message "Jump at ", PC, "   ", (@0-(PC+1-PCERROR) < -0x800) || (@0-(PC+1-PCERROR) >= 0x800)
 	;.if (@0-(PC+1-PCERROR)) < -0x800 || (@0-(PC+1-PCERROR)) >= 0x800
 	;.error "Tortoise Bytecode: jump target out of range"
 	;.endif
@@ -713,10 +726,11 @@
 .endmacro
 
 .macro T_EXT
+	.message "Ext at ", PC, "    ", (@0 < 0) || (@0 > 0xfff)
 	;.if @0 < 0 || @0 > 0xfff
 	;.error "Tortoise Bytecode: EXT target out of range"
 	;.endif
-	.dw	(0xe << 12) | (HIGH(@0)&0x0f) | LOW(@0)
+	.dw	(0xe << 12) | ((HIGH(@0)&0x0f) << 8) | LOW(@0)
 .endmacro
 
 .macro T_CLR
