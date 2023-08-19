@@ -34,7 +34,7 @@ FXYN
 0XY8	div
 0XY9	cmp
 0XYA	test
-0XYB
+0XYB	mod
 0XYC
 0XYD
 0XYE
@@ -52,7 +52,7 @@ FXYN
 1XY8	div
 1XY9	cmp
 1XYA	test
-1XYB
+1XYB	mod
 1XYC
 1XYD
 1XYE

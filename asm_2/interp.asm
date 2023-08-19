@@ -492,7 +492,7 @@ alu_dispatch_jumptable:
 	rjmp	exec_div
 	rjmp	exec_cmp
 	rjmp	exec_test
-	rjmp	exec_nop
+	rjmp	exec_mod
 	rjmp	exec_nop
 	rjmp	exec_nop
 	rjmp	exec_nop
@@ -720,8 +720,66 @@ exec_mul:
 
 
 exec_div:
-	; TODO
+	; Call/ret take more than three clock cycles, so they can't be used
+	ldi	ZL, LOW(_div_done)
+	ldi	ZH, HIGH(_div_done)
+	rjmp	div_subroutine
+_div_done:
+
 	rjmp	_dispatch_done_writeback_flags
+
+
+exec_mod:
+	; Call/ret take more than three clock cycles, so they can't be used
+	ldi	ZL, LOW(_mod_done)
+	ldi	ZH, HIGH(_mod_done)
+	rjmp	div_subroutine
+_mod_done:
+
+	movw	r6, r22
+	movw	r8, r24
+
+	rjmp	_dispatch_done_writeback_flags
+
+
+div_subroutine:
+	; r22:r23:r24:r25 - remainder
+	; r6 :r7 :r8 :r9  - dividend/result
+	; r10:r11:r12:r13 - divisor
+	; r21             - loop counter
+
+	clr	r22
+	clr	r23
+	clr	r24
+	clr	r25
+	ldi	r21, 32
+_div_loop:
+	lsl	r6
+	rol	r7
+	rol	r8
+	rol	r9
+	rol	r22
+	rol	r23
+	rol	r24
+	rol	r25
+
+	cp	r22, r10
+	cpc	r23, r11
+	cpc	r24, r12
+	cpc	r25, r13
+
+	brlo	_div_next
+	sub	r22, r10
+	sbc	r23, r11
+	sbc	r24, r12
+	sbc	r25, r13
+	inc	r6
+_div_next:
+
+	dec	r21
+	brne	_div_loop
+
+	ijmp
 
 
 exec_cmp:

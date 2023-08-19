@@ -223,6 +223,13 @@
 	.dw	(0x0 << 12) | (@0 << 8) | (@1 << 4) | (0xa)
 .endmacro
 
+.macro T_MOD
+	.if @0 < 0 || @0 > 0xf || @1 < 0 || @1 > 0xf
+	.error "Tortoise Bytecode: invalid variable register"
+	.endif
+	.dw	(0x0 << 12) | (@0 << 8) | (@1 << 4) | (0xb)
+.endmacro
+
 .macro T_JALR
 	.if @0 < 0 || @0 > 0xf || @1 < 0 || @1 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
@@ -332,6 +339,15 @@
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
 	.dw	(0x1 << 12) | (@0 << 8) | (0 << 4) | (0xa)
+	.dw	LWRD(@1)
+	.dw	HWRD(@1)
+.endmacro
+
+.macro T_MODI
+	.if @0 < 0 || @0 > 0xf
+	.error "Tortoise Bytecode: invalid variable register"
+	.endif
+	.dw	(0x1 << 12) | (@0 << 8) | (0 << 4) | (0xb)
 	.dw	LWRD(@1)
 	.dw	HWRD(@1)
 .endmacro
