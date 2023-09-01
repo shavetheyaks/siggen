@@ -483,7 +483,7 @@
 	.if @1 < 1 || @1 > 0x10
 	.error "Tortoise Bytecode: SPI immediate value outside 4-bit range"
 	.endif
-	.dw	(0x2 << 12) | (@0 << 8) | ((@1 & 0xf) << 4) | (0x9)
+	.dw	(0x2 << 12) | (@0 << 8) | ((@1 & 0xf) << 4) | (0x8)
 .endmacro
 
 .macro T_MFT
@@ -493,10 +493,20 @@
 	.if @1 < 0 || @1 > 0xf
 	.error "Tortoise Bytecode: immediate value outside 4-bit range"
 	.endif
-	.dw	(0x2 << 12) | (@0 << 8) | (@1 << 4) | (0xa)
+	.dw	(0x2 << 12) | (@0 << 8) | (@1 << 4) | (0x9)
 .endmacro
 
 .macro T_MTT
+	.if @0 < 0 || @0 > 0xf
+	.error "Tortoise Bytecode: invalid variable register"
+	.endif
+	.if @1 < 0 || @1 > 0xf
+	.error "Tortoise Bytecode: immediate value outside 4-bit range"
+	.endif
+	.dw	(0x2 << 12) | (@0 << 8) | (@1 << 4) | (0xa)
+.endmacro
+
+.macro T_DDIR
 	.if @0 < 0 || @0 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif

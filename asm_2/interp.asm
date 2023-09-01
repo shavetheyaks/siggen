@@ -542,10 +542,10 @@ imm4_dispatch_jumptable:
 	rjmp	exec_shra
 	rjmp	exec_rol
 	rjmp	exec_ror
-	rjmp	exec_nop
 	rjmp	exec_spi
 	rjmp	exec_mft
 	rjmp	exec_mtt
+	rjmp	exec_ddir
 	rjmp	exec_din
 	rjmp	exec_dout
 	rjmp	exec_ain
@@ -1339,6 +1339,49 @@ exec_mtt:
 
 	st	Z+, r6
 	st	Z+, r7
+
+	rjmp	_dispatch_done
+
+
+exec_ddir:
+	; Restrict operand to 0-f
+	ldi	r25, 0x0f
+	and	r10, r25
+
+	; Extract LSB from first operand
+	ldi	r23, 0x01
+	and	r6, r23
+	clr	r7
+
+	; Mask of all bits except LSB
+	ldi	r24, 0xfe
+	ldi	r25, 0xff
+
+	; Rotate LSB and mask into position specified by second operand
+_ddir_loop:
+	dec	r10
+	brlt	_din_loop_done
+
+	sec
+	rol	r24
+	rol	r25
+
+	clc
+	rol	r6
+	rol	r7
+
+	rjmp	_ddir_loop
+_ddir_loop_done:
+
+	; Read-modify-write
+	in	r22, DDRB
+	in	r23, DDRC
+	and	r22, r24
+	and	r23, r25
+	or	r22, r6
+	or	r23, r7
+	out	DDRB, r22
+	out	DDRC, r23
 
 	rjmp	_dispatch_done
 
