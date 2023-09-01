@@ -28,5 +28,5 @@
 .endmacro
 
 
-.endif  /* _UTIL_INC_ */
+#endif  /* _UTIL_INC_ */
 

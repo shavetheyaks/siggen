@@ -256,8 +256,8 @@ _decode_done:
 	adc	ZH, r25
 	ijmp               ; Jump to whatever code runs this type of instruction
 _dispatch_done_writeback_flags:
-	; Get rid of the N and Z flags, we're making our own
-	ldi	r25, 0xf9
+	; Get rid of the S, N, and Z flags, we're making our own
+	ldi	r25, 0xe9
 	and	r14, r25
 
 	; Compute N flag
@@ -275,6 +275,13 @@ _dispatch_done_writeback_flags:
 	brne	_no_z
 	or	r14, r24
 _no_z:
+
+	; Compute S flag
+	mov	r25, r14
+	lsl	r25        ; Shift N flag up to where V is
+	eor	r25, r14   ; Xor to get the value for the S flag
+	bst	r25, 3     ; Read flag value
+	bld	r14, 4     ; Write into proper spot
 
 _dispatch_done_writeback_fixedflags:
 	ldi	r24, 0x3c  ; Offset of the VF register (0xf * 4)
@@ -362,6 +369,15 @@ operand_Y:
 	clr	r11
 	clr	r12
 	clr	r13
+
+	; Most of these instructions have no use for a zero immediate
+	; Replace zero with a more useful 0x10 value, for range of 0x01-0x10
+	; Instructions that want 0x00-0x0f can mask off the upper nibble
+	tst	r10
+	brne	_operand_Y_done
+	ldi	r25, 0x10
+	mov	r10, r25
+_operand_Y_done:
 
 	rjmp	_decode_done
 
@@ -489,12 +505,12 @@ alu_dispatch_jumptable:
 	rjmp	exec_nor
 	rjmp	exec_mov
 	rjmp	exec_mul
-	rjmp	exec_div
-	rjmp	exec_cmp
 	rjmp	exec_test
-	rjmp	exec_mod
-	rjmp	exec_nop
-	rjmp	exec_nop
+	rjmp	exec_cmp
+	rjmp	exec_udiv
+	rjmp	exec_umod
+	rjmp	exec_sdiv
+	rjmp	exec_smod
 	rjmp	exec_nop
 	rjmp	exec_jal
 
@@ -677,59 +693,118 @@ exec_mov:
 
 
 exec_mul:
-	clr	r21        ; Zero for adding carries
+	clr	r0         ; Zero for adding carries
+	clr	r1         ; Carry accumulation
+	ldi	r21, 32    ; Loop counter
 	clr	r22        ; Temporary for result
 	clr	r23
 	clr	r24
 	clr	r25
 
-	; Multiply, discarding all overflows because it's hilarious
-	mul	r6, r10
-	movw	r22, r0
-	mul	r7, r11
-	movw	r24, r0
-	mul	r6, r11
-	add	r23, r0
-	adc	r24, r1
-	adc	r25, r21
-	mul	r7, r10
-	add	r23, r0
-	adc	r24, r1
-	adc	r25, r21
-	mul	r6, r12
-	add	r24, r0
-	adc	r25, r1
-	mul	r8, r10
-	add	r24, r0
-	adc	r25, r1
-	mul	r7, r12
-	add	r25, r0
-	mul	r8, r11
-	add	r25, r0
-	mul	r6, r13
-	add	r25, r0
-	mul	r9, r10
-	add	r25, r0
+	; Multiply
+_mul_loop:
+	dec	r21
+	brmi	_mul_done
 
-	; Copy temporary to result
+	lsl	r22        ; Shift result one bit up
+	rol	r23
+	rol	r24
+	rol	r25
+	adc	r1, r0
+
+	lsl	r10        ; Shift multiplier one bit up
+	rol	r11
+	rol	r12
+	rol	r13
+
+	brcc	_mul_loop  ; If the multiplier high bit was 1, add multiplicand
+	add	r22, r6
+	adc	r23, r7
+	adc	r24, r8
+	adc	r25, r9
+	adc	r1, r0
+	rjmp	_mul_loop
+_mul_done:
+
+	; Copy low half of temporary to result (frees up temp regs for flags)
 	movw	r6, r22
+
+	mov	r22, r14   ; Copy flags to temp
+	andi	r22, 0xf6  ; Clear V, and C flags
+
+	; Set carry flag if any of the upper 32 bits of result would be set
+	tst	r1
+	breq	_mul_no_carry
+	ori	r22, 0x01
+_mul_no_carry:
+
+	; Set overflow flag if sign of result disagrees with signs of inputs
+	mov	r23, r9
+	eor	r23, r13   ; Top bit of r23 is one if result should be negative
+	eor	r23, r25   ; Top bit of r23 is one if result sign is incorrect
+	sbrc	r23, 7
+	ori	r22, 0x08
+
+	mov	r14, r22   ; Copy temp back into flags
+
+	; Copy high half of temporary to result
 	movw	r8, r24
 
-	; Don't compute any other flags, LOL!
 	rjmp	_dispatch_done_writeback_flags
 
 
-exec_div:
+exec_udiv:
+	mov	r1, r9
+	eor	r1, r13    ; Bit 7 is set if the result needs to be negated
+	clr	r0         ; For adding carries
+
+	ldi	r25, 0xf6  ; Discard overflow and carry flags
+	and	r14, r25
+
+	; Set carry flag if dividing by zero
+	; Then divide anyway, because it's hilarious
+	mov	r25, r10
+	or	r25, r11
+	or	r25, r12
+	or	r25, r13
+	brne	_udiv_no_divz
+	ldi	r25, 0x01
+	or	r14, r25
+_udiv_no_divz:
+
 	; Call/ret take more than three clock cycles, so they can't be used
 	ldi	ZL, LOW(_div_done)
 	ldi	ZH, HIGH(_div_done)
 	rjmp	div_subroutine
 _div_done:
 
+	; Set the overflow flag if the sign is unexpected
+	ldi	r25, 0x08
+	eor	r1, r9
+	sbrc	r1, 7
+	or	r14, r25
+
 	rjmp	_dispatch_done_writeback_flags
 
 
-exec_mod:
+exec_umod:
+	mov	r1, r13    ; Bit 7 is set if the result needs to be negated
+	clr	r0         ; For adding carries
+
+	ldi	r25, 0xf6  ; Discard overflow and carry flags
+	and	r14, r25
+
+	; Set carry flag if dividing by zero
+	; Then divide anyway, because it's hilarious
+	mov	r25, r10
+	or	r25, r11
+	or	r25, r12
+	or	r25, r13
+	brne	_umod_no_divz
+	ldi	r25, 0x01
+	or	r14, r25
+_umod_no_divz:
+
 	; Call/ret take more than three clock cycles, so they can't be used
 	ldi	ZL, LOW(_mod_done)
 	ldi	ZH, HIGH(_mod_done)
@@ -738,6 +813,173 @@ _mod_done:
 
 	movw	r6, r22
 	movw	r8, r24
+
+	; Set the overflow flag if the sign is unexpected
+	ldi	r25, 0x08
+	eor	r1, r9
+	sbrc	r1, 7
+	or	r14, r25
+
+	rjmp	_dispatch_done_writeback_flags
+
+
+exec_sdiv:
+	mov	r1, r9
+	eor	r1, r13    ; Bit 7 is set if the result needs to be negated
+	clr	r0
+	dec	r0         ; For adding carries during inversion
+
+	ldi	r25, 0xf6  ; Discard overflow and carry flags
+	and	r14, r25
+
+	; Set carry flag if dividing by zero
+	; Then divide anyway, because it's hilarious
+	mov	r25, r10
+	or	r25, r11
+	or	r25, r12
+	or	r25, r13
+	brne	_sdiv_no_divz
+	ldi	r25, 0x01
+	or	r14, r25
+_sdiv_no_divz:
+
+	; Absolute value of dividend
+	bst	r9, 7
+	brtc	_sdiv_no_inv_a
+	com	r9
+	com	r8
+	com	r7
+	neg	r6
+	sbc	r7, r0
+	sbc	r8, r0
+	sbc	r9, r0
+_sdiv_no_inv_a:
+
+	; Absolute value of divisor
+	bst	r13, 7
+	brtc	_sdiv_no_inv_b
+	com	r13
+	com	r12
+	com	r11
+	neg	r10
+	sbc	r11, r0
+	sbc	r12, r0
+	sbc	r13, r0
+_sdiv_no_inv_b:
+
+	; Call/ret take more than three clock cycles, so they can't be used
+	ldi	ZL, LOW(_sdiv_done)
+	ldi	ZH, HIGH(_sdiv_done)
+	rjmp	div_subroutine
+_sdiv_done:
+
+	; Invert result if necessary
+	bst	r1, 7
+	brtc	_sdiv_no_inv
+	com	r6
+	com	r7
+	com	r8
+	com	r9
+	inc	r6
+	adc	r7, r0
+	adc	r8, r0
+	adc	r9, r0
+_sdiv_no_inv:
+
+	; Set the overflow flag if the sign is unexpected
+	ldi	r25, 0x08
+	eor	r1, r9
+	sbrc	r1, 7
+	or	r14, r25
+
+	rjmp	_dispatch_done_writeback_flags
+
+
+exec_smod:
+	mov	r1, r9
+	eor	r1, r13    ; Bit 7 is set if the result is negative
+	bst	r13, 7
+	bld	r1, 6      ; Bit 6 is set if the modulo needs to be negated
+	clr	r0
+	dec	r0         ; For adding carries during inversion
+
+	ldi	r25, 0xf6  ; Discard overflow and carry flags
+	and	r14, r25
+
+	; Set carry flag if dividing by zero
+	; Then divide anyway, because it's hilarious
+	mov	r25, r10
+	or	r25, r11
+	or	r25, r12
+	or	r25, r13
+	brne	_smod_no_divz
+	ldi	r25, 0x01
+	or	r14, r25
+_smod_no_divz:
+
+	; Absolute value of dividend
+	bst	r9, 7
+	brtc	_smod_no_inv_a
+	com	r9
+	com	r8
+	com	r7
+	neg	r6
+	sbc	r7, r0
+	sbc	r8, r0
+	sbc	r9, r0
+_smod_no_inv_a:
+
+	; Absolute value of divisor
+	bst	r13, 7
+	brtc	_smod_no_inv_b
+	com	r13
+	com	r12
+	com	r11
+	neg	r10
+	sbc	r11, r0
+	sbc	r12, r0
+	sbc	r13, r0
+_smod_no_inv_b:
+
+	; Call/ret take more than three clock cycles, so they can't be used
+	ldi	ZL, LOW(_smod_done)
+	ldi	ZH, HIGH(_smod_done)
+	rjmp	div_subroutine
+_smod_done:
+
+	; Adjust modulo if division result is negative
+	bst	r1, 7
+	brtc	_smod_no_adj
+	sub	r10, r22
+	sbc	r11, r23
+	sbc	r12, r24
+	sbc	r13, r25
+	; Invert modulo if divisor was negative
+	bst	r1, 6
+	brtc	_smod_no_inv
+	com	r13
+	com	r12
+	com	r11
+	neg	r10
+	sbc	r11, r0
+	sbc	r12, r0
+	sbc	r13, r0
+_smod_no_inv:
+	; Copy adjusted modulo
+	movw	r6, r10
+	movw	r8, r12
+	rjmp	_smod_doflags
+_smod_no_adj:
+	; Non-negative, copy modulo as-is
+	movw	r6, r22
+	movw	r8, r24
+_smod_doflags:
+
+	; Set the overflow flag if the sign is unexpected
+	ldi	r25, 0x08
+	eor	r1, r9
+	sbrc	r1, 7
+	or	r14, r25
 
 	rjmp	_dispatch_done_writeback_flags
 
@@ -854,6 +1096,7 @@ exec_jal:
 exec_shl:
 	clr	r24        ; Zero for adding carries
 	clr	r25        ; To accumulate carries
+	mov	r1, r9     ; For overflow flag
 
 _shl_loop:
 	dec	r10        ; Decrement counter
@@ -867,13 +1110,30 @@ _shl_loop:
 
 	rjmp	_shl_loop
 _shl_done:
-	; TODO: CV flags
+
+	mov	r24, r14   ; Discard overflow and carry flags
+	andi	r24, 0xf6
+
+	; Set carry flag if any bits were shifted out
+	tst	r25
+	breq	_shl_no_carry
+	ori	r24, 0x01
+_shl_no_carry:
+
+	; Set overflow flag if sign changed
+	eor	r1, r9
+	sbrc	r1, 7
+	ori	r24, 0x04
+
+	mov	r14, r24
+
 	rjmp	_dispatch_done_writeback_flags
 
 
 exec_shrl:
 	clr	r24        ; Zero for adding carries
 	clr	r25        ; To accumulate carries
+	mov	r1, r9     ; For overflow flag
 
 _shrl_loop:
 	dec	r10        ; Decrement counter
@@ -887,7 +1147,23 @@ _shrl_loop:
 
 	rjmp	_shrl_loop
 _shrl_done:
-	; TODO: CV flags
+
+	mov	r24, r14   ; Discard overflow and carry flags
+	andi	r24, 0xf6
+
+	; Set carry flag if any bits were shifted out
+	tst	r25
+	breq	_shrl_no_carry
+	ori	r24, 0x01
+_shrl_no_carry:
+
+	; Set overflow flag if sign changed
+	eor	r1, r9
+	sbrc	r1, 7
+	ori	r24, 0x04
+
+	mov	r14, r24
+
 	rjmp	_dispatch_done_writeback_flags
 
 
@@ -907,11 +1183,26 @@ _shra_loop:
 
 	rjmp	_shra_loop
 _shra_done:
-	; TODO: CV flags
+
+	mov	r24, r14   ; Discard overflow and carry flags
+	andi	r24, 0xf6
+
+	; Set carry flag if any bits were shifted out
+	tst	r25
+	breq	_shra_no_carry
+	ori	r24, 0x01
+_shra_no_carry:
+
+	; Sign will never change, leave overflow flag clear
+
+	mov	r14, r24
+
 	rjmp	_dispatch_done_writeback_flags
 
 
 exec_rol:
+	mov	r1, r9     ; For overflow flag
+
 _rol_loop:
 	dec	r10        ; Decrement counter
 	brlt	_rol_done
@@ -926,11 +1217,25 @@ _rol_loop:
 
 	rjmp	_rol_loop
 _rol_done:
-	; TODO: Flags?
+
+	mov	r24, r14   ; Discard overflow and carry flags
+	andi	r24, 0xf6
+
+	; No bits will be lost, leave carry flag clear
+
+	; Set overflow flag if sign changed
+	eor	r1, r9
+	sbrc	r1, 7
+	ori	r24, 0x04
+
+	mov	r14, r24
+
 	rjmp	_dispatch_done_writeback_flags
 
 
 exec_ror:
+	mov	r1, r9     ; For overflow flag
+
 _ror_loop:
 	dec	r10        ; Decrement counter
 	brlt	_ror_done
@@ -945,7 +1250,19 @@ _ror_loop:
 
 	rjmp	_ror_loop
 _ror_done:
-	; TODO: Flags?
+
+	mov	r14, r14   ; Discard overflow and carry flags
+	andi	r24, 0xf6
+
+	; No bits will be lost, leave carry flag clear
+
+	; Set overflow flag if sign changed
+	eor	r1, r9
+	sbrc	r1, 7
+	ori	r24, 0x04
+
+	mov	r14, r24
+
 	rjmp	_dispatch_done_writeback_flags
 
 
@@ -968,16 +1285,28 @@ _spi_done:
 
 
 exec_mft:
+	; Restrict operand to 0-f
+	ldi	r25, 0x0f
+	and	r10, r25
+
 	; TODO: countdown timer
 	rjmp	_dispatch_done_writeback_reg
 
 
 exec_mtt:
+	; Restrict operand to 0-f
+	ldi	r25, 0x0f
+	and	r10, r25
+
 	; TODO: countdown timer
 	rjmp	_dispatch_done
 
 
 exec_din:
+	; Restrict operand to 0-f
+	ldi	r25, 0x0f
+	and	r10, r25
+
 	; Read port values
 	in	r24, PINB
 	in	r25, PINC
@@ -1004,6 +1333,10 @@ _din_loop_done:
 
 
 exec_dout:
+	; Restrict operand to 0-f
+	ldi	r25, 0x0f
+	and	r10, r25
+
 	; Extract LSB from first operand
 	ldi	r23, 0x01
 	and	r6, r23
@@ -1073,6 +1406,10 @@ _ain_wait:
 
 
 exec_aout:
+	; Restrict operand to 0-f
+	ldi	r25, 0x0f
+	and	r10, r25
+
 	; TODO: PWM output
 	rjmp	_dispatch_done
 

@@ -31,12 +31,12 @@ FXYN
 0XY5	nor
 0XY6	mov
 0XY7	mul
-0XY8	div
+0XY8	test
 0XY9	cmp
-0XYA	test
-0XYB	mod
-0XYC
-0XYD
+0XYA	udiv
+0XYB	umod
+0XYC	sdiv
+0XYD	smod
 0XYE
 0XYF	jal
 
@@ -49,12 +49,12 @@ FXYN
 1XY5	nor
 1XY6	mov
 1XY7	mul
-1XY8	div
+1XY8	test
 1XY9	cmp
-1XYA	test
-1XYB	mod
-1XYC
-1XYD
+1XYA	udiv
+1XYB	umod
+1XYC	sdiv
+1XYD	smod
 1XYE
 1XYF	jal
 

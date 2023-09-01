@@ -202,7 +202,7 @@
 	.dw	(0x0 << 12) | (@0 << 8) | (@1 << 4) | (0x7)
 .endmacro
 
-.macro T_DIV
+.macro T_TEST
 	.if @0 < 0 || @0 > 0xf || @1 < 0 || @1 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
@@ -216,18 +216,32 @@
 	.dw	(0x0 << 12) | (@0 << 8) | (@1 << 4) | (0x9)
 .endmacro
 
-.macro T_TEST
+.macro T_UDIV
 	.if @0 < 0 || @0 > 0xf || @1 < 0 || @1 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
 	.dw	(0x0 << 12) | (@0 << 8) | (@1 << 4) | (0xa)
 .endmacro
 
-.macro T_MOD
+.macro T_UMOD
 	.if @0 < 0 || @0 > 0xf || @1 < 0 || @1 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
 	.dw	(0x0 << 12) | (@0 << 8) | (@1 << 4) | (0xb)
+.endmacro
+
+.macro T_SDIV
+	.if @0 < 0 || @0 > 0xf || @1 < 0 || @1 > 0xf
+	.error "Tortoise Bytecode: invalid variable register"
+	.endif
+	.dw	(0x0 << 12) | (@0 << 8) | (@1 << 4) | (0xc)
+.endmacro
+
+.macro T_SMOD
+	.if @0 < 0 || @0 > 0xf || @1 < 0 || @1 > 0xf
+	.error "Tortoise Bytecode: invalid variable register"
+	.endif
+	.dw	(0x0 << 12) | (@0 << 8) | (@1 << 4) | (0xd)
 .endmacro
 
 .macro T_JALR
@@ -316,7 +330,7 @@
 	.dw	HWRD(@1)
 .endmacro
 
-.macro T_DIVI
+.macro T_TESTI
 	.if @0 < 0 || @0 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
@@ -334,7 +348,7 @@
 	.dw	HWRD(@1)
 .endmacro
 
-.macro T_TESTI
+.macro T_UDIVI
 	.if @0 < 0 || @0 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
@@ -343,11 +357,29 @@
 	.dw	HWRD(@1)
 .endmacro
 
-.macro T_MODI
+.macro T_UMODI
 	.if @0 < 0 || @0 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
 	.dw	(0x1 << 12) | (@0 << 8) | (0 << 4) | (0xb)
+	.dw	LWRD(@1)
+	.dw	HWRD(@1)
+.endmacro
+
+.macro T_SDIVI
+	.if @0 < 0 || @0 > 0xf
+	.error "Tortoise Bytecode: invalid variable register"
+	.endif
+	.dw	(0x1 << 12) | (@0 << 8) | (0 << 4) | (0xc)
+	.dw	LWRD(@1)
+	.dw	HWRD(@1)
+.endmacro
+
+.macro T_SMODI
+	.if @0 < 0 || @0 > 0xf
+	.error "Tortoise Bytecode: invalid variable register"
+	.endif
+	.dw	(0x1 << 12) | (@0 << 8) | (0 << 4) | (0xd)
 	.dw	LWRD(@1)
 	.dw	HWRD(@1)
 .endmacro
@@ -368,90 +400,90 @@
 	.if @0 < 0 || @0 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
-	.if @1 < 0 || @1 > 0xf
-	.error "Tortoise Bytecode: immediate value outside 4-bit range"
+	.if @1 < 1 || @1 > 0x10
+	.error "Tortoise Bytecode: ADDS immediate value outside 4-bit range"
 	.endif
-	.dw	(0x2 << 12) | (@0 << 8) | (@1 << 4) | (0x0)
+	.dw	(0x2 << 12) | (@0 << 8) | ((@1 & 0xf) << 4) | (0x0)
 .endmacro
 
 .macro T_SUBS
 	.if @0 < 0 || @0 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
-	.if @1 < 0 || @1 > 0xf
-	.error "Tortoise Bytecode: immediate value outside 4-bit range"
+	.if @1 < 1 || @1 > 0x10
+	.error "Tortoise Bytecode: SUBS immediate value outside 4-bit range"
 	.endif
-	.dw	(0x2 << 12) | (@0 << 8) | (@1 << 4) | (0x1)
+	.dw	(0x2 << 12) | (@0 << 8) | ((@1 & 0xf) << 4) | (0x1)
 .endmacro
 
 .macro T_MOVS
 	.if @0 < 0 || @0 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
-	.if @1 < 0 || @1 > 0xf
-	.error "Tortoise Bytecode: immediate value outside 4-bit range"
+	.if @1 < 1 || @1 > 0x10
+	.error "Tortoise Bytecode: MOVS immediate value outside 4-bit range"
 	.endif
-	.dw	(0x2 << 12) | (@0 << 8) | (@1 << 4) | (0x2)
+	.dw	(0x2 << 12) | (@0 << 8) | ((@1 & 0xf) << 4) | (0x2)
 .endmacro
 
 .macro T_SHL
 	.if @0 < 0 || @0 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
-	.if @1 < 0 || @1 > 0xf
-	.error "Tortoise Bytecode: immediate value outside 4-bit range"
+	.if @1 < 1 || @1 > 0x10
+	.error "Tortoise Bytecode: SHL immediate value outside 4-bit range"
 	.endif
-	.dw	(0x2 << 12) | (@0 << 8) | (@1 << 4) | (0x3)
+	.dw	(0x2 << 12) | (@0 << 8) | ((@1 & 0xf) << 4) | (0x3)
 .endmacro
 
 .macro T_SHRL
 	.if @0 < 0 || @0 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
-	.if @1 < 0 || @1 > 0xf
-	.error "Tortoise Bytecode: immediate value outside 4-bit range"
+	.if @1 < 1 || @1 > 0x10
+	.error "Tortoise Bytecode: SHRL immediate value outside 4-bit range"
 	.endif
-	.dw	(0x2 << 12) | (@0 << 8) | (@1 << 4) | (0x4)
+	.dw	(0x2 << 12) | (@0 << 8) | ((@1 & 0xf) << 4) | (0x4)
 .endmacro
 
 .macro T_SHRA
 	.if @0 < 0 || @0 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
-	.if @1 < 0 || @1 > 0xf
-	.error "Tortoise Bytecode: immediate value outside 4-bit range"
+	.if @1 < 1 || @1 > 0x10
+	.error "Tortoise Bytecode: SHRA immediate value outside 4-bit range"
 	.endif
-	.dw	(0x2 << 12) | (@0 << 8) | (@1 << 4) | (0x5)
+	.dw	(0x2 << 12) | (@0 << 8) | ((@1 & 0xf) << 4) | (0x5)
 .endmacro
 
 .macro T_ROL
 	.if @0 < 0 || @0 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
-	.if @1 < 0 || @1 > 0xf
-	.error "Tortoise Bytecode: immediate value outside 4-bit range"
+	.if @1 < 1 || @1 > 0x10
+	.error "Tortoise Bytecode: ROL immediate value outside 4-bit range"
 	.endif
-	.dw	(0x2 << 12) | (@0 << 8) | (@1 << 4) | (0x6)
+	.dw	(0x2 << 12) | (@0 << 8) | ((@1 & 0xf) << 4) | (0x6)
 .endmacro
 
 .macro T_ROR
 	.if @0 < 0 || @0 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
-	.if @1 < 0 || @1 > 0xf
-	.error "Tortoise Bytecode: immediate value outside 4-bit range"
+	.if @1 < 1 || @1 > 0x10
+	.error "Tortoise Bytecode: ROR immediate value outside 4-bit range"
 	.endif
-	.dw	(0x2 << 12) | (@0 << 8) | (@1 << 4) | (0x7)
+	.dw	(0x2 << 12) | (@0 << 8) | ((@1 & 0xf) << 4) | (0x7)
 .endmacro
 
 .macro T_SPI
 	.if @0 < 0 || @0 > 0xf
 	.error "Tortoise Bytecode: invalid variable register"
 	.endif
-	.if @1 < 0 || @1 > 0xf
-	.error "Tortoise Bytecode: immediate value outside 4-bit range"
+	.if @1 < 1 || @1 > 0x10
+	.error "Tortoise Bytecode: SPI immediate value outside 4-bit range"
 	.endif
-	.dw	(0x2 << 12) | (@0 << 8) | (@1 << 4) | (0x9)
+	.dw	(0x2 << 12) | (@0 << 8) | ((@1 & 0xf) << 4) | (0x9)
 .endmacro
 
 .macro T_MFT
