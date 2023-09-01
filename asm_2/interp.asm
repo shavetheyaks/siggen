@@ -123,30 +123,46 @@ reset:
 	ldi	r25, LOW(RAMEND)
 	out	SPL, r25
 
-	; ----- Set up debounce timer
+	; ----- Set up timer for countdown clocks
 
 	; Hold prescaler in reset so timer remains halted until we need it
 	ldi	r25, (1 << TSM) | (1 << PSRSYNC)
 	out	GTCCR, r25
 
 	; Timer 0: CTC mode (reset after compare match)
-	;          Clock source CLK_io / 64
-	ldi	r25, (1 << WGM01) | (0 << WGM00)
+	;          Clock source CLK_io / 1024
+	ldi	r25, (0b00 << COM0A0) | (0b00 << COM0B0) | (0b10 << WGM00)
 	out	TCCR0A, r25
-	ldi	r25, (0 << WGM02) | (3 << CS00)
+	ldi	r25, (0b0 << FOC0A) | (0b0 << FOC0B) | (0b0 << WGM02) | (0b101 << CS00)
 	out	TCCR0B, r25
 	sbi	TIFR0, OCF0A  ; Make sure the timer flag is clear
-	ldi	r25, 250      ; Count up to 250 (at 16MHz/64 = 250kHz -> 1ms)
+	ldi	r25, 156      ; Count up to 156 (at 16MHz/1024 = 15.625kHz -> 10ms)
 	out	OCR0A, r25
 	ldi	r25, 0        ; Reset the timer counter
 	out	TCNT0, r25
 
+	; Start the clock
+	ldi	r25, (0 << TSM) | (0 << PSRSYNC)
+	out	GTCCR, r25
+
 	; ----- Reset interpreter state
+
+	clr	r25
+
+	; Zero out countdown clocks
+	ldi	ZL, LOW(interp_clocks)
+	ldi	ZH, HIGH(interp_clocks)
+	ldi	r24, 16*2
+_zclk_loop:
+	dec	r24
+	brlt	_zclk_done
+	st	Z+, r25
+	rjmp	_zclk_loop
+_zclk_done:
 
 	; Zero out registers
 	ldi	ZL, LOW(interp_regs)
 	ldi	ZH, HIGH(interp_regs)
-	clr	r25
 	ldi	r24, 16*4
 _zreg_loop:
 	dec	r24
@@ -172,30 +188,33 @@ _zreg_done:
 	; --------------------------------------------------------------
 	; Main loop
 loop:
-	; Debounce switches
-	in	r25, PCIFR
-	tst	r25
-	breq	_debounce_done
+	; Check for countdown events
+	in	r25, TIFR0
+	sbrs	r25, OCF0A
+	rjmp	_countdown_done
 
-_debounce_reset:
-	; Clear pin change flags
-	out	PCIFR, r25
+	; Clear the timer expire flag
+	out	TIFR0, r25
 
-	; Reset the timer
-	ldi	r25, (1 << TSM) | (1 << PSRSYNC)
-	out	GTCCR, r25
-	sbi	TIFR0, OCF0A
-	clr	r25
-	out	TCNT0, r25
-	out	GTCCR, r25
-
-_debounce_busyloop:
-	in	r25, PCIFR
-	tst	r25
-	brne	_debounce_reset
-	sbis	TIFR0, OCF0A
-	rjmp	_debounce_busyloop
-_debounce_done:
+	; Decrement each of the countdown clocks
+	ldi	ZL, LOW(interp_clocks)
+	ldi	ZH, HIGH(interp_clocks)
+	ldi	r23, 16
+_countdown_loop:
+	dec	r23
+	brlt	_countdown_done
+	ldd	r24, Z+0
+	ldd	r25, Z+1
+	mov	r22, r24
+	or	r22, r25
+	breq	_countdown_next
+	subi	r24, 1
+	sbci	r25, 0
+_countdown_next:
+	st	Z+, r24
+	st	Z+, r25
+	rjmp	_countdown_loop
+_countdown_done:
 
 	; Fetch instruction
 	movw	ZL, r2     ; Put bytecode PC into Z
@@ -1289,7 +1308,19 @@ exec_mft:
 	ldi	r25, 0x0f
 	and	r10, r25
 
-	; TODO: countdown timer
+	lsl	r10
+	clr	r25
+
+	ldi	ZL, LOW(interp_clocks)
+	ldi	ZH, HIGH(interp_clocks)
+	add	ZL, r10
+	adc	ZH, r25
+
+	ld	r6, Z+
+	ld	r7, Z+
+	clr	r8
+	clr	r9
+
 	rjmp	_dispatch_done_writeback_reg
 
 
@@ -1298,7 +1329,17 @@ exec_mtt:
 	ldi	r25, 0x0f
 	and	r10, r25
 
-	; TODO: countdown timer
+	lsl	r10
+	clr	r25
+
+	ldi	ZL, LOW(interp_clocks)
+	ldi	ZH, HIGH(interp_clocks)
+	add	ZL, r10
+	adc	ZH, r25
+
+	st	Z+, r6
+	st	Z+, r7
+
 	rjmp	_dispatch_done
 
 
@@ -1604,10 +1645,14 @@ exec_jmp:
 .dseg
 
 ; 16 general purpose 32-bit "registers" (V0-VF)
-.org	RAMEND+1 - (16*4) - 16
+.org	RAMEND+1 - (16*4) - (16*2) - 16
 
 stack:
 	.byte	16         ; Guard against accidentally clobbering regs
+
+
+interp_clocks:
+	.byte	16*2
 
 interp_regs:
 	.byte	16*4
