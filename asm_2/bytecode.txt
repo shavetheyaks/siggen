@@ -74,7 +74,7 @@ FXYN
 2XYC	din
 2XYD	dout
 2XYE	ain
-2XYF	aout
+2XYF
 
 		v[x], v[y]+n
 3XYn	ldb

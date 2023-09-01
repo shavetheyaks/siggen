@@ -549,7 +549,7 @@ imm4_dispatch_jumptable:
 	rjmp	exec_din
 	rjmp	exec_dout
 	rjmp	exec_ain
-	rjmp	exec_aout
+	rjmp	exec_nop
 
 branch_dispatch_jumptable:
 	rjmp	exec_jtab
@@ -1487,15 +1487,6 @@ _ain_wait:
 	clr	r9
 
 	rjmp	_dispatch_done_writeback_reg
-
-
-exec_aout:
-	; Restrict operand to 0-f
-	ldi	r25, 0x0f
-	and	r10, r25
-
-	; TODO: PWM output
-	rjmp	_dispatch_done
 
 
 exec_ldb:

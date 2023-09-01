@@ -546,16 +546,6 @@
 	.dw	(0x2 << 12) | (@0 << 8) | (@1 << 4) | (0xe)
 .endmacro
 
-.macro T_AOUT
-	.if @0 < 0 || @0 > 0xf
-	.error "Tortoise Bytecode: invalid variable register"
-	.endif
-	.if @1 < 0 || @1 > 0xf
-	.error "Tortoise Bytecode: immediate value outside 4-bit range"
-	.endif
-	.dw	(0x2 << 12) | (@0 << 8) | (@1 << 4) | (0xf)
-.endmacro
-
 .macro T_NEG
 	T_NOT	@0
 	T_ADDS	@0, 1
