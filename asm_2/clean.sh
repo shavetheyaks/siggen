@@ -3,3 +3,4 @@
 rm -f *.hex
 rm -f *.cof
 rm -f *.obj
+rm -f *.map
