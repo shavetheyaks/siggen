@@ -40,14 +40,23 @@
 ; r31 h/
 
 
+; ------------------------------------------------------------------------------
+; Locations
+
+.equ	TORTOISE_CODE_START = 0x0000
+.equ	TORTOISE_DATA_START = SRAM_START
+.equ	IVT_INIT_START      = SMALLBOOTSTART  ; Must be at bootloader start
+.equ	INTERPRETER_START   = 0x3800
+
 
 ; ------------------------------------------------------------------------------
-; Interrupt vector table
+; Interrupt vector table and reset code
 
 .cseg
 
-; FIXME: move everything to the bootloader section, let bytecode take low mem
-.org 0x0000
+; Put in the bootloader section to leave low memory for bytecode
+.org IVT_INIT_START
+
 	rjmp	reset     ; RESET
 	reti
 	reti              ; INT0
@@ -102,22 +111,19 @@
 	reti
 
 
-; ------------------------------------------------------------------------------
-; Bytecode
-
-.include "./program.asm"
-
-
-; ------------------------------------------------------------------------------
-; Reset entry point
-
-.cseg
-
+	; ----- Reset entry point
 reset:
-	; ----- Disable interrupts and set stack pointer to top of SRAM
-
+	; Make sure interrupts are disabled
 	clr	r25
 	out	SREG, r25
+
+	; Move IVT to the bootloader section
+	ldi	r25, (1 << IVCE)
+	out	MCUCR, r25
+	ldi	r25, (1 << IVSEL)
+	out	MCUCR, r25
+
+	; Set stack pointer to top of SRAM
 	ldi	r25, HIGH(RAMEND)
 	out	SPH, r25
 	ldi	r25, LOW(RAMEND)
@@ -180,13 +186,18 @@ _zreg_done:
 	st	Z+, r25
 
 	; Instruction pointer
-	ldi	r25, LOW(entry)
+	ldi	r25, LOW(TORTOISE_CODE_START)
 	mov	r2, r25
-	ldi	r25, HIGH(entry)
+	ldi	r25, HIGH(TORTOISE_CODE_START)
 	mov	r3, r25
 
-	; --------------------------------------------------------------
-	; Main loop
+	rjmp	loop
+
+
+; ------------------------------------------------------------------------------
+; Main loop
+
+.org INTERPRETER_START
 loop:
 	; Check for countdown events
 	in	r25, TIFR0
@@ -549,7 +560,7 @@ imm4_dispatch_jumptable:
 	rjmp	exec_din
 	rjmp	exec_dout
 	rjmp	exec_ain
-	rjmp	exec_nop
+	rjmp	exec_aout
 
 branch_dispatch_jumptable:
 	rjmp	exec_jtab
@@ -1489,6 +1500,59 @@ _ain_wait:
 	rjmp	_dispatch_done_writeback_reg
 
 
+exec_aout:
+	; Restrict operand to 0-7
+	ldi	r25, 0x07
+	and	r10, r25
+
+	clr	r25
+
+	ldi	ZL, LOW(_aout_jtab)
+	ldi	ZH, HIGH(_aout_jtab)
+	add	ZL, r10
+	adc	ZH, r25
+	ijmp
+
+_aout_jtab:
+	rjmp	_aout_ocr0a
+	rjmp	_aout_ocr0b
+	rjmp	_aout_ocr1a
+	rjmp	_aout_ocr1b
+	rjmp	_aout_ocr2a
+	rjmp	_aout_ocr2b
+	rjmp	_aout_done
+	rjmp	_aout_done
+
+_aout_ocr0a:
+	out	OCR0A, r6
+	rjmp	_aout_done
+
+_aout_ocr0b:
+	out	OCR0B, r6
+	rjmp	_aout_done
+
+_aout_ocr1a:
+	sts	OCR1AH, r7
+	sts	OCR1AL, r8
+	rjmp	_aout_done
+
+_aout_ocr1b:
+	sts	OCR1BH, r7
+	sts	OCR1BL, r8
+	rjmp	_aout_done
+
+_aout_ocr2a:
+	sts	OCR2A, r6
+	rjmp	_aout_done
+
+_aout_ocr2b:
+	sts	OCR2B, r6
+	rjmp	_aout_done
+
+_aout_done:
+	rjmp	_dispatch_done
+
+
 exec_ldb:
 	; Load byte
 	movw	ZL, r10
@@ -1678,16 +1742,18 @@ exec_jmp:
 
 .dseg
 
-; 16 general purpose 32-bit "registers" (V0-VF)
+; Place data at the top of memory
 .org	RAMEND+1 - (16*4) - (16*2) - 16
 
+; Top-of-stack (used by bytecode program) just below interpreter state
 stack:
-	.byte	16         ; Guard against accidentally clobbering regs
+	.byte	16         ; Guard against accidental underflows clobbering regs
 
-
+; 16 individual countdown timers
 interp_clocks:
 	.byte	16*2
 
+; 16 general purpose 32-bit "registers" (V0-VF)
 interp_regs:
 	.byte	16*4
 

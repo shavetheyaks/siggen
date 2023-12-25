@@ -67,14 +67,14 @@ FXYN
 2XY5	shra
 2XY6	rol
 2XY7	ror
-2XY8	spi
+2XY8	spi/i2c/stx/srx
 2XY9	mft
 2XYA	mtt
 2XYB	ddir
 2XYC	din
 2XYD	dout
 2XYE	ain
-2XYF
+2XYF	aout
 
 		v[x], v[y]+n
 3XYn	ldb

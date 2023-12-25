@@ -1,7 +1,11 @@
 ; ------------------------------------------------------------------------------
-; Bytecode program, to be included with interpreter
+; Bytecode program, interpreter included
 ; ------------------------------------------------------------------------------
+.include "interp.asm"
 
+
+; ------------------------------------------------------------------------------
+; Definitions
 
 ; Pins for Nokia 5110 LCD
 .equ	P_LED  = 0x8
@@ -18,7 +22,11 @@
 .equ	STEP_MAX = 2560
 
 
+; ------------------------------------------------------------------------------
+; Code section
+
 .cseg
+.org TORTOISE_CODE_START
 
 entry:
 	; Set up ports and SPI
@@ -337,6 +345,10 @@ ext_init:
 	ori	r25, (1 << ADC1D)
 	sts	DIDR0, r25
 
+	; Set up timer/counter 2 for pwm
+	; ldi	r25, ()
+	; sts	TCCR2A, r25
+
 	ijmp
 
 font:
@@ -357,7 +369,11 @@ font:
 	.db	0b11111110, 0b10010010, 0b10010010, 0b10000010, 0b00000000, 0xe
 	.db	0b11111110, 0b00010010, 0b00010010, 0b00000010, 0b00000000, 0xf
 
+
+; ------------------------------------------------------------------------------
+
 .dseg
+.org TORTOISE_DATA_START
 
 spi_buf:
 	.byte	16
